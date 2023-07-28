@@ -425,7 +425,7 @@ fn calculateIcmp6Checksum(ndp_frame: EthernetNdpFrame) u16 {
 
 test "expect correctly parsed mappings with 1 IPv4 mapping arg" {
     const alloc = std.testing.allocator;
-    var args = [_][:0]const u8{"11:22:33:44:55:66|192.168.1.1"};
+    var args = [_][:0]const u8{ "friendly_neighbor", "11:22:33:44:55:66|192.168.1.1" };
 
     const mappings = try parseArgs(alloc, &args);
     const ip4_mappings = mappings[0];
@@ -435,5 +435,7 @@ test "expect correctly parsed mappings with 1 IPv4 mapping arg" {
 
     try std.testing.expect(ip4_mappings.len == 1);
     try std.testing.expect(ip6_mappings.len == 0);
-    try std.testing.expect(std.mem.eql(u8, "11:22:33:44:55:66", &ip4_mappings[0].mac));
+    try std.testing.expect(std.mem.eql(u8, &[_]u8{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 }, &ip4_mappings[0].mac));
+    const expectedAddr = try std.net.Address.parseIp4("192.168.1.1", 0);
+    try std.testing.expect(std.net.Address.eql(expectedAddr, ip4_mappings[0].ip));
 }
