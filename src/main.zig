@@ -3,15 +3,82 @@ const c = @cImport({
     @cInclude("pcap.h");
 });
 
+// **********
+// Constants
+// **********
 const PACKET_LENGTH = 78;
 const ETHERNET_ARP_PAYLOAD_TYPE = 0x0806;
 const ETHERNET_IP6_PAYLOAD_TYPE = 0x86dd;
 
+// **********
+// Structs
+// **********
 const MacIpAddressPair = struct {
     mac: [6]u8,
     ip: std.net.Address,
 };
 
+const EthernetArpFrame = packed struct {
+    eth_dst_addr: u48,
+    eth_src_addr: u48,
+    payload_type: u16,
+    hardware_type: u16,
+    protocol_type: u16,
+    hardware_addr_len: u8,
+    protocol_addr_len: u8,
+    operation: u16,
+    sender_hardware_addr: u48,
+    sender_protocol_addr: u32,
+    target_hardware_addr: u48,
+    target_protocol_addr: u32,
+};
+
+const EthernetNdpFrame = packed struct {
+    eth_dst_addr: u48,
+    eth_src_addr: u48,
+    payload_type: u16 = std.mem.nativeToBig(u16, 0x86dd),
+    // Version, traffic class, and flow label are stored in a single field
+    // Storing `version` as a u4 on its own is gnarly because it's less than a byte, so needs special treatment
+    ip_version_traffic_class_flow_label: u32 = std.mem.nativeToBig(u32, 0x60000000),
+    ip_payload_len: u16,
+    ip_next_header: u8 = 58, // ICMPv6
+    ip_hop_limit: u8 = 255,
+    ip_src_addr: u128,
+    ip_dst_addr: u128,
+    icmp_type: u8,
+    icmp_code: u8,
+    icmp_checksum: u16,
+    icmp_flags: u32,
+    ndp_target_addr: u128,
+    ndp_option_type: u8,
+    ndp_option_len: u8,
+    ndp_option_eth_addr: u48,
+};
+
+const Ip6PseudoHeader = packed struct {
+    ip_src_addr: u128,
+    ip_dst_addr: u128,
+    icmpv6_len: u32,
+    padding: u24 = 0,
+    next_header: u8 = 58,
+};
+
+const EthernetHeader = packed struct {
+    eth_dst_addr: u48,
+    eth_src_addr: u48,
+    payload_type: u16,
+};
+
+const CaptureContext = struct {
+    handle: *c.pcap_t,
+    ip4_mappings: []MacIpAddressPair,
+    ip6_mappings: []MacIpAddressPair,
+    my_mac_addr: [6]u8,
+};
+
+// **********
+// Functions
+// **********
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
@@ -29,26 +96,11 @@ pub fn main() !void {
     const pcap_filter_exp = try generateCaptureFilterExpression(gpa.allocator(), ip4_mappings, ip6_mappings);
     defer gpa.allocator().free(pcap_filter_exp);
 
-    // Get my MAC address. Only works on Linux.
-    // TODO: add support for macOS and Windows
-    var sysfs_mac_addr_file = try std.fs.openFileAbsoluteZ("/sys/class/net/eth0/address", .{});
-    defer sysfs_mac_addr_file.close();
-
-    var sysfs_mac_addr_file_contents: [17]u8 = undefined;
-    _ = try sysfs_mac_addr_file.read(&sysfs_mac_addr_file_contents);
-    var my_mac_addr: [6]u8 = undefined;
-    var sysfs_mac_addr_file_contents_iter = std.mem.tokenizeScalar(u8, &sysfs_mac_addr_file_contents, ':');
-    var i: usize = 0;
-    while (sysfs_mac_addr_file_contents_iter.next()) |hexpair| {
-        _ = try std.fmt.hexToBytes(my_mac_addr[i .. i + 1], hexpair);
-        i += 1;
-    }
-    std.debug.print("My MAC: {}\n", .{std.fmt.fmtSliceHexLower(&my_mac_addr)});
+    // Get my MAC address
+    const my_mac_addr = try getMyMacAddress();
 
     // Begin capture
     try beginCapture(ip4_mappings, ip6_mappings, my_mac_addr, pcap_filter_exp);
-
-    return;
 }
 
 fn parseArgs(alloc: std.mem.Allocator, args: [][:0]u8) ![2][]MacIpAddressPair {
@@ -139,12 +191,24 @@ fn generateCaptureFilterExpression(alloc: std.mem.Allocator, ip4_mappings: []Mac
     return pcap_filter_str.toOwnedSlice();
 }
 
-const CaptureContext = struct {
-    handle: *c.pcap_t,
-    ip4_mappings: []MacIpAddressPair,
-    ip6_mappings: []MacIpAddressPair,
-    my_mac_addr: [6]u8,
-};
+// TODO: add support for macOS and Windows
+fn getMyMacAddress() ![6]u8 {
+    var sysfs_mac_addr_file = try std.fs.openFileAbsoluteZ("/sys/class/net/eth0/address", .{});
+    defer sysfs_mac_addr_file.close();
+
+    var sysfs_mac_addr_file_contents: [17]u8 = undefined;
+    _ = try sysfs_mac_addr_file.read(&sysfs_mac_addr_file_contents);
+    var my_mac_addr: [6]u8 = undefined;
+    var sysfs_mac_addr_file_contents_iter = std.mem.tokenizeScalar(u8, &sysfs_mac_addr_file_contents, ':');
+    var i: usize = 0;
+    while (sysfs_mac_addr_file_contents_iter.next()) |hexpair| {
+        _ = try std.fmt.hexToBytes(my_mac_addr[i .. i + 1], hexpair);
+        i += 1;
+    }
+    std.debug.print("My MAC: {}\n", .{std.fmt.fmtSliceHexLower(&my_mac_addr)});
+
+    return my_mac_addr;
+}
 
 fn beginCapture(ip4_mappings: []MacIpAddressPair, ip6_mappings: []MacIpAddressPair, my_mac_addr: [6]u8, filter_exp: []u8) !void {
     var error_buffer: [c.PCAP_ERRBUF_SIZE]u8 = undefined;
@@ -324,62 +388,9 @@ fn calculateIcmp6Checksum(ndp_frame: EthernetNdpFrame) u16 {
     return ~folded_sum;
 }
 
-const EthernetArpFrame = packed struct {
-    eth_dst_addr: u48,
-    eth_src_addr: u48,
-    payload_type: u16,
-    hardware_type: u16,
-    protocol_type: u16,
-    hardware_addr_len: u8,
-    protocol_addr_len: u8,
-    operation: u16,
-    sender_hardware_addr: u48,
-    sender_protocol_addr: u32,
-    target_hardware_addr: u48,
-    target_protocol_addr: u32,
-};
-
-const EthernetNdpFrame = packed struct {
-    eth_dst_addr: u48,
-    eth_src_addr: u48,
-    payload_type: u16 = std.mem.nativeToBig(u16, 0x86dd),
-    // Version, traffic class, and flow label are stored in a single field
-    // Storing `version` as a u4 on its own is gnarly because it's less than a byte, so needs special treatment
-    ip_version_traffic_class_flow_label: u32 = std.mem.nativeToBig(u32, 0x60000000),
-    ip_payload_len: u16,
-    ip_next_header: u8 = 58, // ICMPv6
-    ip_hop_limit: u8 = 255,
-    ip_src_addr: u128,
-    ip_dst_addr: u128,
-    icmp_type: u8,
-    icmp_code: u8,
-    icmp_checksum: u16,
-    icmp_flags: u32,
-    ndp_target_addr: u128,
-    ndp_option_type: u8,
-    ndp_option_len: u8,
-    ndp_option_eth_addr: u48,
-};
-
-const Ip6PseudoHeader = packed struct {
-    ip_src_addr: u128,
-    ip_dst_addr: u128,
-    icmpv6_len: u32,
-    padding: u24 = 0,
-    next_header: u8 = 58,
-};
-
-// comptime {
-//     @compileLog("sizeof EthernetArpFrame", @sizeOf(EthernetArpFrame));
-//     @compileLog("bitsizeof EthernetArpFrame", @bitSizeOf(EthernetArpFrame) / 8);
-// }
-
-const EthernetHeader = packed struct {
-    eth_dst_addr: u48,
-    eth_src_addr: u48,
-    payload_type: u16,
-};
-
+// **********
+// Tests
+// **********
 test "icmpv6 checksum" {
     const dst_mac = std.mem.nativeToBig(u48, 0x222222222222);
     const my_mac = std.mem.nativeToBig(u48, 0xaaaaaaaaaaaa);
