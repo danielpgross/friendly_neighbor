@@ -26,48 +26,8 @@ pub fn main() !void {
     defer gpa.allocator().free(ip6_mappings);
 
     // Generate pcap filter string
-    var pcap_filter_str = std.ArrayList(u8).init(gpa.allocator());
-    defer pcap_filter_str.deinit();
-    var pcap_filter_writer = pcap_filter_str.writer();
-
-    // IPv4 addresses
-    if (ip4_mappings.len > 0) {
-        try pcap_filter_writer.print("(arp and arp[6:2] == 1 and (", .{});
-        for (ip4_mappings, 0..) |ip4_mapping, i| {
-            if (i > 0) {
-                try pcap_filter_writer.print(" or ", .{});
-            }
-            const bytes = @as(*const [4]u8, @ptrCast(&ip4_mapping.ip.in.sa.addr));
-            try pcap_filter_writer.print("arp[24:4] == 0x{}", .{std.fmt.fmtSliceHexLower(bytes)});
-        }
-        try pcap_filter_writer.print("))", .{});
-    }
-
-    if (ip4_mappings.len > 0 and ip6_mappings.len > 0) {
-        try pcap_filter_writer.print(" or ", .{});
-    }
-
-    // IPv6 addresses
-    if (ip6_mappings.len > 0) {
-        try pcap_filter_writer.print("(icmp6 and ip6[40] == 135 and (", .{});
-        for (ip6_mappings, 0..) |ip6_mapping, i| {
-            if (i > 0) {
-                try pcap_filter_writer.print(" or ", .{});
-            }
-            const bytes = @as(*const [16]u8, @ptrCast(&ip6_mapping.ip.in6.sa.addr));
-            try pcap_filter_writer.print("(ip6[48:4] == 0x{} and ip6[52:4] == 0x{} and ip6[56:4] == 0x{} and ip6[60:4] == 0x{})", .{
-                std.fmt.fmtSliceHexLower(bytes[0..4]),
-                std.fmt.fmtSliceHexLower(bytes[4..8]),
-                std.fmt.fmtSliceHexLower(bytes[8..12]),
-                std.fmt.fmtSliceHexLower(bytes[12..16]),
-            });
-        }
-        try pcap_filter_writer.print("))", .{});
-    }
-    // Null-terminate the filter string
-    try pcap_filter_str.append('\x00');
-
-    std.debug.print("PCAP filter: {s}\n", .{pcap_filter_str.items});
+    const pcap_filter_exp = try generateCaptureFilterExpression(gpa.allocator(), ip4_mappings, ip6_mappings);
+    defer gpa.allocator().free(pcap_filter_exp);
 
     // Get my MAC address. Only works on Linux.
     // TODO: add support for macOS and Windows
@@ -86,7 +46,7 @@ pub fn main() !void {
     std.debug.print("My MAC: {}\n", .{std.fmt.fmtSliceHexLower(&my_mac_addr)});
 
     // Begin capture
-    try beginCapture(ip4_mappings, ip6_mappings, my_mac_addr, pcap_filter_str.items);
+    try beginCapture(ip4_mappings, ip6_mappings, my_mac_addr, pcap_filter_exp);
 
     return;
 }
@@ -131,6 +91,52 @@ fn parseArgs(alloc: std.mem.Allocator, args: [][:0]u8) ![2][]MacIpAddressPair {
     }
 
     return [_][]MacIpAddressPair{ try ip4_mappings.toOwnedSlice(), try ip6_mappings.toOwnedSlice() };
+}
+
+fn generateCaptureFilterExpression(alloc: std.mem.Allocator, ip4_mappings: []MacIpAddressPair, ip6_mappings: []MacIpAddressPair) ![]u8 {
+    var pcap_filter_str = std.ArrayList(u8).init(alloc);
+    var pcap_filter_writer = pcap_filter_str.writer();
+
+    // IPv4 addresses
+    if (ip4_mappings.len > 0) {
+        try pcap_filter_writer.print("(arp and arp[6:2] == 1 and (", .{});
+        for (ip4_mappings, 0..) |ip4_mapping, i| {
+            if (i > 0) {
+                try pcap_filter_writer.print(" or ", .{});
+            }
+            const bytes = @as(*const [4]u8, @ptrCast(&ip4_mapping.ip.in.sa.addr));
+            try pcap_filter_writer.print("arp[24:4] == 0x{}", .{std.fmt.fmtSliceHexLower(bytes)});
+        }
+        try pcap_filter_writer.print("))", .{});
+    }
+
+    if (ip4_mappings.len > 0 and ip6_mappings.len > 0) {
+        try pcap_filter_writer.print(" or ", .{});
+    }
+
+    // IPv6 addresses
+    if (ip6_mappings.len > 0) {
+        try pcap_filter_writer.print("(icmp6 and ip6[40] == 135 and (", .{});
+        for (ip6_mappings, 0..) |ip6_mapping, i| {
+            if (i > 0) {
+                try pcap_filter_writer.print(" or ", .{});
+            }
+            const bytes = @as(*const [16]u8, @ptrCast(&ip6_mapping.ip.in6.sa.addr));
+            try pcap_filter_writer.print("(ip6[48:4] == 0x{} and ip6[52:4] == 0x{} and ip6[56:4] == 0x{} and ip6[60:4] == 0x{})", .{
+                std.fmt.fmtSliceHexLower(bytes[0..4]),
+                std.fmt.fmtSliceHexLower(bytes[4..8]),
+                std.fmt.fmtSliceHexLower(bytes[8..12]),
+                std.fmt.fmtSliceHexLower(bytes[12..16]),
+            });
+        }
+        try pcap_filter_writer.print("))", .{});
+    }
+    // Null-terminate the filter string
+    try pcap_filter_str.append('\x00');
+
+    std.debug.print("PCAP filter: {s}\n", .{pcap_filter_str.items});
+
+    return pcap_filter_str.toOwnedSlice();
 }
 
 const CaptureContext = struct {
