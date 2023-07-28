@@ -103,7 +103,7 @@ pub fn main() !void {
     try beginCapture(ip4_mappings, ip6_mappings, my_mac_addr, pcap_filter_exp);
 }
 
-fn parseArgs(alloc: std.mem.Allocator, args: [][:0]u8) ![2][]MacIpAddressPair {
+fn parseArgs(alloc: std.mem.Allocator, args: [][:0]const u8) ![2][]MacIpAddressPair {
     var ip4_mappings = std.ArrayList(MacIpAddressPair).init(alloc);
     var ip6_mappings = std.ArrayList(MacIpAddressPair).init(alloc);
 
@@ -391,37 +391,49 @@ fn calculateIcmp6Checksum(ndp_frame: EthernetNdpFrame) u16 {
 // **********
 // Tests
 // **********
-test "icmpv6 checksum" {
-    const dst_mac = std.mem.nativeToBig(u48, 0x222222222222);
-    const my_mac = std.mem.nativeToBig(u48, 0xaaaaaaaaaaaa);
-    const src_mac = std.mem.nativeToBig(u48, 0x111111111111);
-    const src_ip = std.mem.nativeToBig(u128, 0x2001db8333344445555666677778888);
-    const dst_ip = std.mem.nativeToBig(u128, 0x2001db833334444CCCCDDDDEEEEFFFF);
+//test "icmpv6 checksum" {
+//     const dst_mac = std.mem.nativeToBig(u48, 0x222222222222);
+//     const my_mac = std.mem.nativeToBig(u48, 0xaaaaaaaaaaaa);
+//     const src_mac = std.mem.nativeToBig(u48, 0x111111111111);
+//     const src_ip = std.mem.nativeToBig(u128, 0x2001db8333344445555666677778888);
+//     const dst_ip = std.mem.nativeToBig(u128, 0x2001db833334444CCCCDDDDEEEEFFFF);
 
-    const packet = EthernetNdpFrame{
-        .eth_dst_addr = dst_mac,
-        .eth_src_addr = my_mac,
-        .payload_type = std.mem.nativeToBig(u16, 0x86dd), // IPv6
-        .ip_version = 6,
-        .ip_traffic_class = 0,
-        .ip_flow_label = 0,
-        .ip_payload_len = std.mem.nativeToBig(u16, 32),
-        .ip_next_header = 58, // ICMPv6
-        .ip_hop_limit = 255,
-        .ip_src_addr = src_ip,
-        .ip_dst_addr = dst_ip,
-        .icmp_type = 136, // Neighbor advertisement
-        .icmp_code = 0,
-        .icmp_checksum = 0,
-        .icmp_flags = std.mem.nativeToBig(u32, 0x40000000), // Solicited
-        .ndp_target_addr = src_ip,
-        .ndp_option_type = 2,
-        .ndp_option_len = 1,
-        .ndp_option_eth_addr = src_mac,
-    };
+//     const packet = EthernetNdpFrame{
+//         .eth_dst_addr = dst_mac,
+//         .eth_src_addr = my_mac,
+//         .payload_type = std.mem.nativeToBig(u16, 0x86dd), // IPv6
+//         .ip_payload_len = std.mem.nativeToBig(u16, 32),
+//         .ip_next_header = 58, // ICMPv6
+//         .ip_hop_limit = 255,
+//         .ip_src_addr = src_ip,
+//         .ip_dst_addr = dst_ip,
+//         .icmp_type = 136, // Neighbor advertisement
+//         .icmp_code = 0,
+//         .icmp_checksum = 0,
+//         .icmp_flags = std.mem.nativeToBig(u32, 0x40000000), // Solicited
+//         .ndp_target_addr = src_ip,
+//         .ndp_option_type = 2,
+//         .ndp_option_len = 1,
+//         .ndp_option_eth_addr = src_mac,
+//     };
 
-    std.debug.print("align of EthernetNdpFrame: {d}\n", .{@alignOf(EthernetNdpFrame)});
+//     std.debug.print("align of EthernetNdpFrame: {d}\n", .{@alignOf(EthernetNdpFrame)});
 
-    const result = calculateIcmp6Checksum(packet);
-    std.debug.print("checksum: {d}", .{result});
+//     const result = calculateIcmp6Checksum(packet);
+//     std.debug.print("checksum: {d}", .{result});
+// }
+
+test "expect correctly parsed mappings with 1 IPv4 mapping arg" {
+    const alloc = std.testing.allocator;
+    var args = [_][:0]const u8{"11:22:33:44:55:66|192.168.1.1"};
+
+    const mappings = try parseArgs(alloc, &args);
+    const ip4_mappings = mappings[0];
+    defer alloc.free(ip4_mappings);
+    const ip6_mappings = mappings[1];
+    defer alloc.free(ip6_mappings);
+
+    try std.testing.expect(ip4_mappings.len == 1);
+    try std.testing.expect(ip6_mappings.len == 0);
+    try std.testing.expect(std.mem.eql(u8, "11:22:33:44:55:66", &ip4_mappings[0].mac));
 }
