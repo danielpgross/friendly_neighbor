@@ -3,6 +3,8 @@ const c = @cImport({
     @cInclude("pcap.h");
 });
 
+const parseArgs = @import("parse_args.zig");
+
 // **********
 // Constants
 // **********
@@ -13,7 +15,7 @@ const ETHERNET_IP6_PAYLOAD_TYPE = 0x86dd;
 // **********
 // Structs
 // **********
-const MacIpAddressPair = struct {
+pub const MacIpAddressPair = struct {
     mac: [6]u8,
     ip: std.net.Address,
 };
@@ -101,48 +103,6 @@ pub fn main() !void {
 
     // Begin capture
     try beginCapture(ip4_mappings, ip6_mappings, my_mac_addr, pcap_filter_exp);
-}
-
-fn parseArgs(alloc: std.mem.Allocator, args: [][:0]const u8) ![2][]MacIpAddressPair {
-    var ip4_mappings = std.ArrayList(MacIpAddressPair).init(alloc);
-    var ip6_mappings = std.ArrayList(MacIpAddressPair).init(alloc);
-
-    for (args[1..]) |arg| {
-        std.debug.print("Arg: {s}\n", .{arg});
-
-        var it = std.mem.tokenizeScalar(u8, arg, '|');
-        const mac_addr_slice = it.next() orelse return error.InvalidArgument;
-        var mac_addr: [6]u8 = undefined;
-        var mac_addr_iter = std.mem.tokenizeScalar(u8, mac_addr_slice, ':');
-        var i: usize = 0;
-        while (mac_addr_iter.next()) |hexpair| {
-            _ = try std.fmt.hexToBytes(mac_addr[i .. i + 1], hexpair);
-            i += 1;
-        }
-        if (it.next()) |nextVal| {
-            if (std.net.Address.parseIp4(nextVal, 0)) |ip4| {
-                try ip4_mappings.append(MacIpAddressPair{
-                    .mac = mac_addr,
-                    .ip = ip4,
-                });
-            } else |_| {}
-            if (std.net.Address.parseIp6(nextVal, 0)) |ip6| {
-                try ip6_mappings.append(MacIpAddressPair{
-                    .mac = mac_addr,
-                    .ip = ip6,
-                });
-            } else |_| {}
-        }
-    }
-
-    for (ip4_mappings.items) |ip4Mapping| {
-        std.debug.print("ip4Mapping: {}, {}\n", .{ std.fmt.fmtSliceHexLower(&ip4Mapping.mac), ip4Mapping.ip });
-    }
-    for (ip6_mappings.items) |ip6Mapping| {
-        std.debug.print("ip6Mapping: {}, {}\n", .{ std.fmt.fmtSliceHexLower(&ip6Mapping.mac), ip6Mapping.ip });
-    }
-
-    return [_][]MacIpAddressPair{ try ip4_mappings.toOwnedSlice(), try ip6_mappings.toOwnedSlice() };
 }
 
 fn generateCaptureFilterExpression(alloc: std.mem.Allocator, ip4_mappings: []MacIpAddressPair, ip6_mappings: []MacIpAddressPair) ![]u8 {
@@ -423,19 +383,6 @@ fn calculateIcmp6Checksum(ndp_frame: EthernetNdpFrame) u16 {
 //     std.debug.print("checksum: {d}", .{result});
 // }
 
-test "expect correctly parsed mappings with 1 IPv4 mapping arg" {
-    const alloc = std.testing.allocator;
-    var args = [_][:0]const u8{ "friendly_neighbor", "11:22:33:44:55:66|192.168.1.1" };
-
-    const mappings = try parseArgs(alloc, &args);
-    const ip4_mappings = mappings[0];
-    defer alloc.free(ip4_mappings);
-    const ip6_mappings = mappings[1];
-    defer alloc.free(ip6_mappings);
-
-    try std.testing.expect(ip4_mappings.len == 1);
-    try std.testing.expect(ip6_mappings.len == 0);
-    try std.testing.expect(std.mem.eql(u8, &[_]u8{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 }, &ip4_mappings[0].mac));
-    const expectedAddr = try std.net.Address.parseIp4("192.168.1.1", 0);
-    try std.testing.expect(std.net.Address.eql(expectedAddr, ip4_mappings[0].ip));
+test {
+    _ = @import("parse_args.zig");
 }
