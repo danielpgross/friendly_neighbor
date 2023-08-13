@@ -6,7 +6,7 @@ pub fn parseArgs(alloc: std.mem.Allocator, args: [][:0]const u8) ![2][]MacIpAddr
     var ip6_mappings = std.ArrayList(MacIpAddressPair).init(alloc);
 
     for (args[1..]) |arg| {
-        std.debug.print("Arg: {s}\n", .{arg});
+        std.log.debug("Arg: {s}\n", .{arg});
 
         var it = std.mem.tokenizeScalar(u8, arg, '|');
         const mac_addr_slice = it.next() orelse return error.InvalidArgument;
@@ -34,10 +34,10 @@ pub fn parseArgs(alloc: std.mem.Allocator, args: [][:0]const u8) ![2][]MacIpAddr
     }
 
     for (ip4_mappings.items) |ip4Mapping| {
-        std.debug.print("ip4Mapping: {}, {}\n", .{ std.fmt.fmtSliceHexLower(&ip4Mapping.mac), ip4Mapping.ip });
+        std.log.debug("ip4Mapping: {}, {}\n", .{ std.fmt.fmtSliceHexLower(&ip4Mapping.mac), ip4Mapping.ip });
     }
     for (ip6_mappings.items) |ip6Mapping| {
-        std.debug.print("ip6Mapping: {}, {}\n", .{ std.fmt.fmtSliceHexLower(&ip6Mapping.mac), ip6Mapping.ip });
+        std.log.debug("ip6Mapping: {}, {}\n", .{ std.fmt.fmtSliceHexLower(&ip6Mapping.mac), ip6Mapping.ip });
     }
 
     return [_][]MacIpAddressPair{ try ip4_mappings.toOwnedSlice(), try ip6_mappings.toOwnedSlice() };
