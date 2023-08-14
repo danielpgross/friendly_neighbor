@@ -25,8 +25,8 @@ pub fn build(b: *std.Build) void {
     });
 
     exe.linkLibC();
-    exe.addIncludePath("/opt/homebrew/opt/libpcap/include");
-    exe.addLibraryPath("/opt/homebrew/opt/libpcap/lib");
+    exe.addIncludePath(.{ .path = "/opt/homebrew/opt/libpcap/include" });
+    exe.addLibraryPath(.{ .path = "/opt/homebrew/opt/libpcap/lib" });
     exe.linkSystemLibrary("pcap");
 
     // This declares intent for the executable to be installed into the
@@ -66,8 +66,8 @@ pub fn build(b: *std.Build) void {
     });
 
     unit_tests.linkLibC();
-    unit_tests.addIncludePath("/opt/homebrew/opt/libpcap/include");
-    unit_tests.addLibraryPath("/opt/homebrew/opt/libpcap/lib");
+    unit_tests.addIncludePath(.{ .path = "/opt/homebrew/opt/libpcap/include" });
+    unit_tests.addLibraryPath(.{ .path = "/opt/homebrew/opt/libpcap/lib" });
     unit_tests.linkSystemLibrary("pcap");
     const run_unit_tests = b.addRunArtifact(unit_tests);
 
