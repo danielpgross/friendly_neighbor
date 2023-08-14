@@ -3,8 +3,8 @@ const c = @cImport({
     @cInclude("pcap.h");
 });
 
-const parseArgs = @import("parse_args.zig");
-const generateCaptureFilterExpression = @import("capture_filter.zig");
+const parseArgs = @import("parse_args.zig").parseArgs;
+const generateCaptureFilterExpression = @import("capture_filter.zig").generateCaptureFilterExpression;
 
 // **********
 // Constants
