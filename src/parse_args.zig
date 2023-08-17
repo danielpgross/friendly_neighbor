@@ -1,12 +1,58 @@
 const std = @import("std");
-const MacIpAddressPair = @import("main.zig").MacIpAddressPair;
+const clap = @import("clap");
 
-pub fn parseArgs(alloc: std.mem.Allocator, args: [][:0]const u8) ![2][]MacIpAddressPair {
+const MacIpAddressPair = @import("main.zig").MacIpAddressPair;
+const ExecutionOptions = @import("main.zig").ExecutionOptions;
+
+pub fn parseArgs(alloc: std.mem.Allocator) !ExecutionOptions {
+    const params = comptime clap.parseParamsComptime(
+        \\-h, --help Display this help and exit
+        \\-i, --interface <INTERFACE_NAME> Network interface name on which to listen and send packets
+        \\<MAPPING>... One or more MAC to IP (v4 or v6) address mappings, each one in the format <MAC address>|<IP address>
+        \\
+    );
+    const parsers = comptime .{
+        .INTERFACE_NAME = clap.parsers.string,
+        .MAPPING = clap.parsers.string,
+    };
+    var diag = clap.Diagnostic{};
+    var res = clap.parse(clap.Help, &params, parsers, .{
+        .diagnostic = &diag,
+    }) catch |err| {
+        diag.report(std.io.getStdErr().writer(), err) catch {};
+        return err;
+    };
+    defer res.deinit();
+
+    if (res.args.help != 0) {
+        try clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
+        return error.CliArgsHelpRequested;
+    }
+
+    var execution_options = ExecutionOptions{
+        .interface_name = res.args.interface orelse {
+            std.log.err("Network interface name is required, but was not provided.", .{});
+            return error.InterfaceRequired;
+        },
+        .ip4_mappings = undefined,
+        .ip6_mappings = undefined,
+    };
+
+    std.log.debug("Interface: {?s}", .{res.args.interface});
+
+    const mappings = try parseMacIpMappings(alloc, res.positionals);
+    execution_options.ip4_mappings = mappings[0];
+    execution_options.ip6_mappings = mappings[1];
+
+    return execution_options;
+}
+
+fn parseMacIpMappings(alloc: std.mem.Allocator, args: []const []const u8) ![2][]MacIpAddressPair {
     var ip4_mappings = std.ArrayList(MacIpAddressPair).init(alloc);
     var ip6_mappings = std.ArrayList(MacIpAddressPair).init(alloc);
 
-    for (args[1..]) |arg| {
-        std.log.debug("Arg: {s}\n", .{arg});
+    for (args) |arg| {
+        std.log.debug("Positional arg: {s}", .{arg});
 
         var it = std.mem.tokenizeScalar(u8, arg, '|');
         const mac_addr_slice = it.next() orelse return error.InvalidArgument;
@@ -34,10 +80,10 @@ pub fn parseArgs(alloc: std.mem.Allocator, args: [][:0]const u8) ![2][]MacIpAddr
     }
 
     for (ip4_mappings.items) |ip4Mapping| {
-        std.log.debug("ip4Mapping: {}, {}\n", .{ std.fmt.fmtSliceHexLower(&ip4Mapping.mac), ip4Mapping.ip });
+        std.log.debug("ip4Mapping: {}, {}", .{ std.fmt.fmtSliceHexLower(&ip4Mapping.mac), ip4Mapping.ip });
     }
     for (ip6_mappings.items) |ip6Mapping| {
-        std.log.debug("ip6Mapping: {}, {}\n", .{ std.fmt.fmtSliceHexLower(&ip6Mapping.mac), ip6Mapping.ip });
+        std.log.debug("ip6Mapping: {}, {}", .{ std.fmt.fmtSliceHexLower(&ip6Mapping.mac), ip6Mapping.ip });
     }
 
     return [_][]MacIpAddressPair{ try ip4_mappings.toOwnedSlice(), try ip6_mappings.toOwnedSlice() };

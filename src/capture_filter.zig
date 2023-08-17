@@ -20,7 +20,7 @@ pub fn generateCaptureFilterExpression(alloc: std.mem.Allocator, ip4_mappings: [
     // Null-terminate the filter string
     try pcap_filter_str.append('\x00');
 
-    std.log.debug("PCAP filter: {s}\n", .{pcap_filter_str.items});
+    std.log.debug("PCAP filter: {s}", .{pcap_filter_str.items});
 
     return pcap_filter_str.toOwnedSlice();
 }

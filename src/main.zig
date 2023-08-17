@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @cImport({
     @cInclude("pcap.h");
 });
+const clap = @import("clap");
 
 const parseArgs = @import("parse_args.zig").parseArgs;
 const generateCaptureFilterExpression = @import("capture_filter.zig").generateCaptureFilterExpression;
@@ -16,6 +17,12 @@ const ETHERNET_IP6_PAYLOAD_TYPE = 0x86dd;
 // **********
 // Structs
 // **********
+pub const ExecutionOptions = struct {
+    interface_name: []const u8,
+    ip4_mappings: []MacIpAddressPair,
+    ip6_mappings: []MacIpAddressPair,
+};
+
 pub const MacIpAddressPair = struct {
     mac: [6]u8,
     ip: std.net.Address,
@@ -85,25 +92,37 @@ const CaptureContext = struct {
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
-    const args = try std.process.argsAlloc(gpa.allocator());
-    defer std.process.argsFree(gpa.allocator(), args);
-
-    // Parse args into IP:MAC mappings
-    const mappings = try parseArgs(gpa.allocator(), args);
-    const ip4_mappings = mappings[0];
-    defer gpa.allocator().free(ip4_mappings);
-    const ip6_mappings = mappings[1];
-    defer gpa.allocator().free(ip6_mappings);
-
-    // Generate pcap filter string
-    const pcap_filter_exp = try generateCaptureFilterExpression(gpa.allocator(), ip4_mappings, ip6_mappings);
-    defer gpa.allocator().free(pcap_filter_exp);
+    // Parse CLI args
+    const exec_opts = parseArgs(gpa.allocator()) catch |err| {
+        if (err == error.CliArgsHelpRequested) return else return handleFatalErr(error.ArgParseFailure);
+    };
+    defer gpa.allocator().free(exec_opts.ip4_mappings);
+    defer gpa.allocator().free(exec_opts.ip6_mappings);
 
     // Get my MAC address
-    const my_mac_addr = try getMyMacAddress();
+    const my_mac_addr = getMyMacAddress() catch
+        return handleFatalErr(error.GetInterfaceMacFailure);
+
+    // Generate pcap filter string
+    const pcap_filter_exp = generateCaptureFilterExpression(gpa.allocator(), exec_opts.ip4_mappings, exec_opts.ip6_mappings) catch
+        return handleFatalErr(error.GenerateCaptureFilterFailure);
+    defer gpa.allocator().free(pcap_filter_exp);
 
     // Begin capture
-    try beginCapture(ip4_mappings, ip6_mappings, my_mac_addr, pcap_filter_exp);
+    beginCapture(exec_opts.ip4_mappings, exec_opts.ip6_mappings, my_mac_addr, pcap_filter_exp) catch
+        return handleFatalErr(error.PacketCaptureFailure);
+}
+
+fn handleFatalErr(err: anyerror) !void {
+    _ = switch (err) {
+        error.ArgParseFailure => std.log.err("Failed to parse command line arguments.", .{}),
+        error.GenerateCaptureFilterFailure => std.log.err("Failed to generate packet capture filter.", .{}),
+        error.GetInterfaceMacFailure => std.log.err("Failed to determine MAC address for specified network interface.", .{}),
+        error.PacketCaptureFailure => std.log.err("Failed to start network packet capture.", .{}),
+        else => {},
+    };
+
+    return err;
 }
 
 // TODO: add support for macOS and Windows
