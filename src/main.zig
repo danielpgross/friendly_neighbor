@@ -100,7 +100,9 @@ pub fn main() !void {
     defer gpa.allocator().free(exec_opts.ip6_mappings);
 
     // Get my MAC address
-    const my_mac_addr = getMyMacAddress() catch
+    validateInterface(exec_opts.interface_name) catch
+        return handleFatalErr(error.InvalidInterfaceType);
+    const my_mac_addr = getMacAddress(exec_opts.interface_name) catch
         return handleFatalErr(error.GetInterfaceMacFailure);
 
     // Generate pcap filter string
@@ -119,15 +121,29 @@ fn handleFatalErr(err: anyerror) !void {
         error.GenerateCaptureFilterFailure => std.log.err("Failed to generate packet capture filter.", .{}),
         error.GetInterfaceMacFailure => std.log.err("Failed to determine MAC address for specified network interface.", .{}),
         error.PacketCaptureFailure => std.log.err("Failed to start network packet capture.", .{}),
+        error.InvalidInterfaceType => std.log.err("Specified network interface is invalid or not supported, use a wired Ethernet interface instead.", .{}),
         else => {},
     };
 
     return err;
 }
 
+fn validateInterface(interface_name: []const u8) !void {
+    const sysfs_path_template = "/sys/class/net/{s}/wireless";
+    var sysfs_path_buffer = [_]u8{undefined} ** (sysfs_path_template.len - 3 + 16); // 16 is maximum length of a Linux network interface name
+    const sysfs_path = try std.fmt.bufPrint(&sysfs_path_buffer, sysfs_path_template, .{interface_name});
+    std.fs.accessAbsolute(sysfs_path, .{}) catch return;
+
+    std.log.err("Interface {s} appears to be wireless.", .{interface_name});
+    return error.InterfaceIsWireless;
+}
+
 // TODO: add support for macOS and Windows
-fn getMyMacAddress() ![6]u8 {
-    var sysfs_mac_addr_file = try std.fs.openFileAbsoluteZ("/sys/class/net/eth0/address", .{});
+fn getMacAddress(interface_name: []const u8) ![6]u8 {
+    const sysfs_path_template = "/sys/class/net/{s}/address";
+    var sysfs_path_buffer = [_]u8{undefined} ** (sysfs_path_template.len - 3 + 16); // 16 is maximum length of a Linux network interface name
+    const sysfs_path = try std.fmt.bufPrint(&sysfs_path_buffer, sysfs_path_template, .{interface_name});
+    var sysfs_mac_addr_file = try std.fs.openFileAbsolute(sysfs_path, .{});
     defer sysfs_mac_addr_file.close();
 
     var sysfs_mac_addr_file_contents: [17]u8 = undefined;
