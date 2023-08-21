@@ -47,7 +47,7 @@ pub fn parseArgs(alloc: std.mem.Allocator) !ExecutionOptions {
     return execution_options;
 }
 
-fn parseMacIpMappings(alloc: std.mem.Allocator, args: []const []const u8) ![2][]MacIpAddressPair {
+fn parseMacIpMappings(alloc: std.mem.Allocator, args: []const []const u8) ![2][]const MacIpAddressPair {
     var ip4_mappings = std.ArrayList(MacIpAddressPair).init(alloc);
     var ip6_mappings = std.ArrayList(MacIpAddressPair).init(alloc);
 

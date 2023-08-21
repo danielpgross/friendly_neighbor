@@ -19,8 +19,8 @@ const ETHERNET_IP6_PAYLOAD_TYPE = 0x86dd;
 // **********
 pub const ExecutionOptions = struct {
     interface_name: []const u8,
-    ip4_mappings: []MacIpAddressPair,
-    ip6_mappings: []MacIpAddressPair,
+    ip4_mappings: []const MacIpAddressPair,
+    ip6_mappings: []const MacIpAddressPair,
 };
 
 pub const MacIpAddressPair = struct {
@@ -81,8 +81,8 @@ const EthernetHeader = packed struct {
 
 const CaptureContext = struct {
     handle: *c.pcap_t,
-    ip4_mappings: []MacIpAddressPair,
-    ip6_mappings: []MacIpAddressPair,
+    ip4_mappings: []const MacIpAddressPair,
+    ip6_mappings: []const MacIpAddressPair,
     my_mac_addr: [6]u8,
 };
 
@@ -160,7 +160,7 @@ fn getMacAddress(interface_name: []const u8) ![6]u8 {
     return my_mac_addr;
 }
 
-fn beginCapture(ip4_mappings: []MacIpAddressPair, ip6_mappings: []MacIpAddressPair, my_mac_addr: [6]u8, filter_exp: []u8) !void {
+fn beginCapture(ip4_mappings: []const MacIpAddressPair, ip6_mappings: []const MacIpAddressPair, my_mac_addr: [6]u8, filter_exp: []const u8) !void {
     var error_buffer: [c.PCAP_ERRBUF_SIZE]u8 = undefined;
     const device = c.pcap_lookupdev(&error_buffer);
     std.log.debug("Device: {s}\n", .{device});
@@ -206,7 +206,7 @@ export fn packetHandler(user: [*c]u8, packet_header: [*c]const c.pcap_pkthdr, ra
     }
 }
 
-fn handleIp4Packet(pcap_handle: *c.pcap_t, packet: []const u8, mappings: []MacIpAddressPair, my_mac_addr: [6]u8) !void {
+fn handleIp4Packet(pcap_handle: *c.pcap_t, packet: []const u8, mappings: []const MacIpAddressPair, my_mac_addr: [6]u8) !void {
     std.log.debug("Handling IP4 packet\n", .{});
 
     const arp_frame = @as(*align(1) const EthernetArpFrame, @ptrCast(packet));
@@ -230,7 +230,7 @@ fn handleIp4Packet(pcap_handle: *c.pcap_t, packet: []const u8, mappings: []MacIp
     sendArpReply(pcap_handle, @as(u48, @bitCast(my_mac_addr)), arp_frame.target_protocol_addr, @as(u48, @bitCast(matched_mapping_val.mac)), arp_frame.sender_protocol_addr, arp_frame.sender_hardware_addr);
 }
 
-fn handleIp6Packet(pcap_handle: *c.pcap_t, packet: []const u8, mappings: []MacIpAddressPair, my_mac_addr: [6]u8) !void {
+fn handleIp6Packet(pcap_handle: *c.pcap_t, packet: []const u8, mappings: []const MacIpAddressPair, my_mac_addr: [6]u8) !void {
     std.log.debug("Handling IP6 packet\n", .{});
 
     const ndp_frame = @as(*align(1) const EthernetNdpFrame, @ptrCast(packet));

@@ -1,7 +1,7 @@
 const std = @import("std");
 const MacIpAddressPair = @import("main.zig").MacIpAddressPair;
 
-pub fn generateCaptureFilterExpression(alloc: std.mem.Allocator, ip4_mappings: []MacIpAddressPair, ip6_mappings: []MacIpAddressPair) ![]u8 {
+pub fn generateCaptureFilterExpression(alloc: std.mem.Allocator, ip4_mappings: []const MacIpAddressPair, ip6_mappings: []const MacIpAddressPair) ![]const u8 {
     var pcap_filter_str = std.ArrayList(u8).init(alloc);
     var pcap_filter_writer = pcap_filter_str.writer();
 
@@ -25,7 +25,7 @@ pub fn generateCaptureFilterExpression(alloc: std.mem.Allocator, ip4_mappings: [
     return pcap_filter_str.toOwnedSlice();
 }
 
-fn generateIp4CaptureFilterExpression(pcap_filter_writer: anytype, ip4_mappings: []MacIpAddressPair) !void {
+fn generateIp4CaptureFilterExpression(pcap_filter_writer: anytype, ip4_mappings: []const MacIpAddressPair) !void {
     try pcap_filter_writer.print("(arp and arp[6:2] == 1 and (", .{});
     for (ip4_mappings, 0..) |ip4_mapping, i| {
         if (i > 0) {
@@ -37,7 +37,7 @@ fn generateIp4CaptureFilterExpression(pcap_filter_writer: anytype, ip4_mappings:
     try pcap_filter_writer.print("))", .{});
 }
 
-fn generateIp6CaptureFilterExpression(pcap_filter_writer: anytype, ip6_mappings: []MacIpAddressPair) !void {
+fn generateIp6CaptureFilterExpression(pcap_filter_writer: anytype, ip6_mappings: []const MacIpAddressPair) !void {
     try pcap_filter_writer.print("(icmp6 and ip6[40] == 135 and (", .{});
     for (ip6_mappings, 0..) |ip6_mapping, i| {
         if (i > 0) {
@@ -60,7 +60,7 @@ test "expect correct filter expression with 1 IPv4 mapping" {
         .mac = [_]u8{ 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 },
     };
 
-    const filter_exp = try generateCaptureFilterExpression(std.testing.allocator, @constCast(&[_]MacIpAddressPair{ip4_mapping}), @constCast(&[_]MacIpAddressPair{}));
+    const filter_exp = try generateCaptureFilterExpression(std.testing.allocator, &[_]MacIpAddressPair{ip4_mapping}, &[_]MacIpAddressPair{});
     defer std.testing.allocator.free(filter_exp);
 
     try std.testing.expect(std.mem.eql(u8, "(arp and arp[6:2] == 1 and (arp[24:4] == 0xc0a80101))\x00", filter_exp));
