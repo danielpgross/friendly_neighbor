@@ -1,6 +1,8 @@
 const std = @import("std");
 const clap = @import("clap");
 
+const log = @import("main.zig").log;
+
 const MacIpAddressPair = @import("main.zig").MacIpAddressPair;
 const ExecutionOptions = @import("main.zig").ExecutionOptions;
 
@@ -31,14 +33,14 @@ pub fn parseArgs(alloc: std.mem.Allocator) !ExecutionOptions {
 
     var execution_options = ExecutionOptions{
         .interface_name = res.args.interface orelse {
-            std.log.err("Network interface name is required, but was not provided.", .{});
+            log.err("Network interface name is required, but was not provided.", .{});
             return error.InterfaceRequired;
         },
         .ip4_mappings = undefined,
         .ip6_mappings = undefined,
     };
 
-    std.log.debug("Interface: {?s}", .{res.args.interface});
+    log.debug("Interface: {?s}", .{res.args.interface});
 
     const mappings = try parseMacIpMappings(alloc, res.positionals);
     execution_options.ip4_mappings = mappings[0];
@@ -52,7 +54,7 @@ fn parseMacIpMappings(alloc: std.mem.Allocator, args: []const []const u8) ![2][]
     var ip6_mappings = std.ArrayList(MacIpAddressPair).init(alloc);
 
     for (args) |arg| {
-        std.log.debug("Positional arg: {s}", .{arg});
+        log.debug("Positional arg: {s}", .{arg});
 
         var it = std.mem.tokenizeScalar(u8, arg, '|');
         const mac_addr_slice = it.next() orelse return error.InvalidArgument;
@@ -80,10 +82,10 @@ fn parseMacIpMappings(alloc: std.mem.Allocator, args: []const []const u8) ![2][]
     }
 
     for (ip4_mappings.items) |ip4Mapping| {
-        std.log.debug("ip4Mapping: {}, {}", .{ std.fmt.fmtSliceHexLower(&ip4Mapping.mac), ip4Mapping.ip });
+        log.debug("ip4Mapping: {}, {}", .{ std.fmt.fmtSliceHexLower(&ip4Mapping.mac), ip4Mapping.ip });
     }
     for (ip6_mappings.items) |ip6Mapping| {
-        std.log.debug("ip6Mapping: {}, {}", .{ std.fmt.fmtSliceHexLower(&ip6Mapping.mac), ip6Mapping.ip });
+        log.debug("ip6Mapping: {}, {}", .{ std.fmt.fmtSliceHexLower(&ip6Mapping.mac), ip6Mapping.ip });
     }
 
     return [_][]MacIpAddressPair{ try ip4_mappings.toOwnedSlice(), try ip6_mappings.toOwnedSlice() };

@@ -1,5 +1,7 @@
 const std = @import("std");
+
 const MacIpAddressPair = @import("main.zig").MacIpAddressPair;
+const log = @import("main.zig").log;
 
 pub fn generateCaptureFilterExpression(alloc: std.mem.Allocator, ip4_mappings: []const MacIpAddressPair, ip6_mappings: []const MacIpAddressPair) ![]const u8 {
     var pcap_filter_str = std.ArrayList(u8).init(alloc);
@@ -20,7 +22,7 @@ pub fn generateCaptureFilterExpression(alloc: std.mem.Allocator, ip4_mappings: [
     // Null-terminate the filter string
     try pcap_filter_str.append('\x00');
 
-    std.log.debug("PCAP filter: {s}", .{pcap_filter_str.items});
+    log.debug("PCAP filter: {s}", .{pcap_filter_str.items});
 
     return pcap_filter_str.toOwnedSlice();
 }

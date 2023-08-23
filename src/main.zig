@@ -7,6 +7,8 @@ const clap = @import("clap");
 const parseArgs = @import("parse_args.zig").parseArgs;
 const generateCaptureFilterExpression = @import("capture_filter.zig").generateCaptureFilterExpression;
 
+pub const log = std.log.scoped(.friendly_neighbor);
+
 // **********
 // Constants
 // **********
@@ -111,17 +113,17 @@ pub fn main() !void {
     defer gpa.allocator().free(pcap_filter_exp);
 
     // Begin capture
-    beginCapture(exec_opts.ip4_mappings, exec_opts.ip6_mappings, my_mac_addr, pcap_filter_exp) catch
+    beginCapture(exec_opts.interface_name, exec_opts.ip4_mappings, exec_opts.ip6_mappings, my_mac_addr, pcap_filter_exp) catch
         return handleFatalErr(error.PacketCaptureFailure);
 }
 
 fn handleFatalErr(err: anyerror) !void {
     _ = switch (err) {
-        error.ArgParseFailure => std.log.err("Failed to parse command line arguments.", .{}),
-        error.GenerateCaptureFilterFailure => std.log.err("Failed to generate packet capture filter.", .{}),
-        error.GetInterfaceMacFailure => std.log.err("Failed to determine MAC address for specified network interface.", .{}),
-        error.PacketCaptureFailure => std.log.err("Failed to start network packet capture.", .{}),
-        error.InvalidInterfaceType => std.log.err("Specified network interface is invalid or not supported, use a wired Ethernet interface instead.", .{}),
+        error.ArgParseFailure => log.err("Failed to parse command line arguments.", .{}),
+        error.GenerateCaptureFilterFailure => log.err("Failed to generate packet capture filter.", .{}),
+        error.GetInterfaceMacFailure => log.err("Failed to determine MAC address for specified network interface.", .{}),
+        error.PacketCaptureFailure => log.err("Failed to start network packet capture.", .{}),
+        error.InvalidInterfaceType => log.err("Specified network interface is invalid or not supported, use a wired Ethernet interface instead.", .{}),
         else => {},
     };
 
@@ -134,7 +136,7 @@ fn validateInterface(interface_name: []const u8) !void {
     const sysfs_path = try std.fmt.bufPrint(&sysfs_path_buffer, sysfs_path_template, .{interface_name});
     std.fs.accessAbsolute(sysfs_path, .{}) catch return;
 
-    std.log.err("Interface {s} appears to be wireless.", .{interface_name});
+    log.err("Interface {s} appears to be wireless.", .{interface_name});
     return error.InterfaceIsWireless;
 }
 
@@ -155,17 +157,15 @@ fn getMacAddress(interface_name: []const u8) ![6]u8 {
         _ = try std.fmt.hexToBytes(my_mac_addr[i .. i + 1], hexpair);
         i += 1;
     }
-    std.log.debug("My MAC: {}\n", .{std.fmt.fmtSliceHexLower(&my_mac_addr)});
+    log.debug("My MAC: {}", .{std.fmt.fmtSliceHexLower(&my_mac_addr)});
 
     return my_mac_addr;
 }
 
-fn beginCapture(ip4_mappings: []const MacIpAddressPair, ip6_mappings: []const MacIpAddressPair, my_mac_addr: [6]u8, filter_exp: []const u8) !void {
+fn beginCapture(interface_name: []const u8, ip4_mappings: []const MacIpAddressPair, ip6_mappings: []const MacIpAddressPair, my_mac_addr: [6]u8, filter_exp: []const u8) !void {
     var error_buffer: [c.PCAP_ERRBUF_SIZE]u8 = undefined;
-    const device = c.pcap_lookupdev(&error_buffer);
-    std.log.debug("Device: {s}\n", .{device});
 
-    const handle: *c.pcap_t = c.pcap_open_live(device, PACKET_LENGTH, 1, 1, &error_buffer) orelse return error.OpenLiveFailure;
+    const handle: *c.pcap_t = c.pcap_open_live(@as([*c]const u8, @ptrCast(interface_name)), PACKET_LENGTH, 1, 1, &error_buffer) orelse return error.OpenLiveFailure;
     defer c.pcap_close(handle);
 
     const capture_context = CaptureContext{
@@ -181,16 +181,18 @@ fn beginCapture(ip4_mappings: []const MacIpAddressPair, ip6_mappings: []const Ma
         return error.FilterCompileFailure;
     }
     if (c.pcap_setfilter(handle, &filter) == -1) {
+        c.pcap_perror(handle, "pcap");
         return error.FilterSetFailure;
     }
 
     if (c.pcap_loop(handle, 0, packetHandler, @as([*c]u8, @ptrCast(@constCast(&capture_context)))) == -1) {
+        c.pcap_perror(handle, "pcap");
         return error.LoopFailure;
     }
 }
 
 export fn packetHandler(user: [*c]u8, packet_header: [*c]const c.pcap_pkthdr, raw_packet: [*c]const u8) void {
-    std.log.debug("Handling packet. Timestamp: {d}, length: {d}\n", .{ packet_header.*.ts.tv_sec, packet_header.*.len });
+    log.debug("Handling packet. Timestamp: {d}, length: {d}\n", .{ packet_header.*.ts.tv_sec, packet_header.*.len });
     const packet = raw_packet[0..packet_header.*.len];
     const capture_context = @as(*align(1) CaptureContext, @ptrCast(user));
     const ethernet_header = @as(*align(1) const EthernetHeader, @ptrCast(packet));
@@ -200,26 +202,26 @@ export fn packetHandler(user: [*c]u8, packet_header: [*c]const c.pcap_pkthdr, ra
         ETHERNET_ARP_PAYLOAD_TYPE => handleIp4Packet(capture_context.handle, packet, capture_context.ip4_mappings, capture_context.my_mac_addr) catch return,
         ETHERNET_IP6_PAYLOAD_TYPE => handleIp6Packet(capture_context.handle, packet, capture_context.ip6_mappings, capture_context.my_mac_addr) catch return,
         else => {
-            std.log.debug("Unkown packet type: {d}\n", .{std.mem.bigToNative(u16, ethernet_header.payload_type)});
+            log.err("Unknown packet type: {d}\n", .{std.mem.bigToNative(u16, ethernet_header.payload_type)});
             return;
         },
     }
 }
 
 fn handleIp4Packet(pcap_handle: *c.pcap_t, packet: []const u8, mappings: []const MacIpAddressPair, my_mac_addr: [6]u8) !void {
-    std.log.debug("Handling IP4 packet\n", .{});
+    log.debug("Handling IP4 packet\n", .{});
 
     const arp_frame = @as(*align(1) const EthernetArpFrame, @ptrCast(packet));
     const target_ip_bytes = @as(*const [4]u8, @ptrCast(&arp_frame.target_protocol_addr));
-    std.log.debug("Target MAC: {x}", .{arp_frame.target_hardware_addr});
-    std.log.debug(", Target IP: {d}.{d}.{d}.{d}\n", .{ target_ip_bytes[0], target_ip_bytes[1], target_ip_bytes[2], target_ip_bytes[3] });
+    log.debug("Target MAC: {x}", .{arp_frame.target_hardware_addr});
+    log.debug(", Target IP: {d}.{d}.{d}.{d}\n", .{ target_ip_bytes[0], target_ip_bytes[1], target_ip_bytes[2], target_ip_bytes[3] });
 
     const target_addr = std.net.Address.initIp4(target_ip_bytes.*, 0);
 
     var matched_mapping: ?MacIpAddressPair = null;
     for (mappings) |mapping| {
         const mapping_addr = mapping.ip;
-        std.log.debug("Compare: {}, {}\n", .{ target_addr, mapping_addr });
+        log.debug("Compare: {}, {}\n", .{ target_addr, mapping_addr });
         if (std.net.Address.eql(target_addr, mapping_addr)) {
             matched_mapping = mapping;
         }
@@ -231,7 +233,7 @@ fn handleIp4Packet(pcap_handle: *c.pcap_t, packet: []const u8, mappings: []const
 }
 
 fn handleIp6Packet(pcap_handle: *c.pcap_t, packet: []const u8, mappings: []const MacIpAddressPair, my_mac_addr: [6]u8) !void {
-    std.log.debug("Handling IP6 packet\n", .{});
+    log.debug("Handling IP6 packet\n", .{});
 
     const ndp_frame = @as(*align(1) const EthernetNdpFrame, @ptrCast(packet));
     const target_ip_bytes = @as(*const [16]u8, @ptrCast(&ndp_frame.ndp_target_addr));
@@ -241,7 +243,7 @@ fn handleIp6Packet(pcap_handle: *c.pcap_t, packet: []const u8, mappings: []const
     var matched_mapping: ?MacIpAddressPair = null;
     for (mappings) |mapping| {
         const mapping_addr = mapping.ip;
-        std.log.debug("Compare: {}, {}\n", .{ target_addr, mapping_addr });
+        log.debug("Compare: {}, {}\n", .{ target_addr, mapping_addr });
         if (std.net.Address.eql(target_addr, mapping_addr)) {
             matched_mapping = mapping;
         }
@@ -253,7 +255,7 @@ fn handleIp6Packet(pcap_handle: *c.pcap_t, packet: []const u8, mappings: []const
 }
 
 fn sendArpReply(pcap_handle: *c.pcap_t, my_mac: u48, src_ip: u32, src_mac: u48, dst_ip: u32, dst_mac: u48) void {
-    std.log.debug("Matched, sending reply.\n", .{});
+    log.debug("Matched, sending reply.\n", .{});
 
     const packet = EthernetArpFrame{
         .eth_dst_addr = dst_mac,
@@ -274,7 +276,7 @@ fn sendArpReply(pcap_handle: *c.pcap_t, my_mac: u48, src_ip: u32, src_mac: u48, 
 }
 
 fn sendNdpReply(pcap_handle: *c.pcap_t, my_mac: u48, src_ip: u128, src_mac: u48, dst_ip: u128, dst_mac: u48) void {
-    std.log.debug("Matched, sending reply.\n", .{});
+    log.debug("Matched, sending reply.\n", .{});
 
     var packet = EthernetNdpFrame{
         .eth_dst_addr = dst_mac,
@@ -292,8 +294,8 @@ fn sendNdpReply(pcap_handle: *c.pcap_t, my_mac: u48, src_ip: u128, src_mac: u48,
         .ndp_option_eth_addr = src_mac,
     };
 
-    std.log.debug("Src IP: {x}\n", .{std.mem.bigToNative(u128, src_ip)});
-    std.log.debug("Dst IP: {x}\n", .{std.mem.bigToNative(u128, dst_ip)});
+    log.debug("Src IP: {x}\n", .{std.mem.bigToNative(u128, src_ip)});
+    log.debug("Dst IP: {x}\n", .{std.mem.bigToNative(u128, dst_ip)});
 
     const icmp_checksum = calculateIcmp6Checksum(packet);
     packet.icmp_checksum = std.mem.nativeToBig(u16, icmp_checksum);
@@ -322,13 +324,13 @@ fn calculateIcmp6Checksum(ndp_frame: EthernetNdpFrame) u16 {
 
     var sum: u32 = 0;
     const checksum_target_words = @as(*align(1) const [checksum_target.len / 2]u16, @ptrCast(&checksum_target));
-    std.log.debug("Words: ", .{});
+    log.debug("Words: ", .{});
     for (checksum_target_words) |word| {
         const native_word = std.mem.bigToNative(u16, word);
-        std.log.debug("{X:0>4}", .{native_word});
+        log.debug("{X:0>4}", .{native_word});
         sum += native_word;
     }
-    std.log.debug("\n", .{});
+    log.debug("\n", .{});
 
     // Fold the 32-bit sum to 16 bits
     sum = (sum >> 16) + (sum & 0xFFFF);
@@ -367,10 +369,10 @@ fn calculateIcmp6Checksum(ndp_frame: EthernetNdpFrame) u16 {
 //         .ndp_option_eth_addr = src_mac,
 //     };
 
-//     std.log.debug("align of EthernetNdpFrame: {d}\n", .{@alignOf(EthernetNdpFrame)});
+//     log.debug("align of EthernetNdpFrame: {d}\n", .{@alignOf(EthernetNdpFrame)});
 
 //     const result = calculateIcmp6Checksum(packet);
-//     std.log.debug("checksum: {d}", .{result});
+//     log.debug("checksum: {d}", .{result});
 // }
 
 test {
