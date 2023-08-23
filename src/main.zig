@@ -163,10 +163,19 @@ fn getMacAddress(interface_name: []const u8) ![6]u8 {
 }
 
 fn beginCapture(interface_name: []const u8, ip4_mappings: []const MacIpAddressPair, ip6_mappings: []const MacIpAddressPair, my_mac_addr: [6]u8, filter_exp: []const u8) !void {
-    var error_buffer: [c.PCAP_ERRBUF_SIZE]u8 = undefined;
+    var error_buffer: [c.PCAP_ERRBUF_SIZE:0]u8 = undefined;
+    error_buffer[0] = '\x00';
 
-    const handle: *c.pcap_t = c.pcap_open_live(@as([*c]const u8, @ptrCast(interface_name)), PACKET_LENGTH, 1, 1, &error_buffer) orelse return error.OpenLiveFailure;
+    const handle: *c.pcap_t = c.pcap_open_live(@as([*c]const u8, @ptrCast(interface_name)), PACKET_LENGTH, 1, 1, &error_buffer) orelse {
+        log.err("Failed to open packet capture handle: {s}", .{@as([*:0]const u8, &error_buffer)});
+        return error.OpenLiveFailure;
+    };
     defer c.pcap_close(handle);
+
+    // Even if pcap_open_live doesn't fail outright, PCAP can store a warning in the error buffer
+    if (error_buffer[0] != '\x00') {
+        log.warn("While opening packet capture handle: {s}", .{@as([*:0]const u8, &error_buffer)});
+    }
 
     const capture_context = CaptureContext{
         .handle = handle,
