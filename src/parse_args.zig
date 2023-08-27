@@ -1,10 +1,10 @@
 const std = @import("std");
 const clap = @import("clap");
 
-const log = @import("main.zig").log;
-
-const MacIpAddressPair = @import("main.zig").MacIpAddressPair;
-const ExecutionOptions = @import("main.zig").ExecutionOptions;
+const main = @import("main.zig");
+const log = main.log;
+const ExecutionOptions = main.ExecutionOptions;
+const MacIpAddressPair = main.MacIpAddressPair;
 
 pub fn parseArgs(alloc: std.mem.Allocator) !ExecutionOptions {
     const params = comptime clap.parseParamsComptime(
