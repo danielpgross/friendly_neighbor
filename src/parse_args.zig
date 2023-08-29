@@ -79,7 +79,7 @@ fn parseMacIpMappings(alloc: std.mem.Allocator, mapping_args: []const []const u8
 fn parseMacIpMapping(mapping_arg: []const u8, ip4_mappings: *std.ArrayListAligned(MacIpAddressPair, null), ip6_mappings: *std.ArrayListAligned(MacIpAddressPair, null)) !void {
     log.debug("Mapping arg: {s}", .{mapping_arg});
     parseMacIpMappingContent(mapping_arg, ip4_mappings, ip6_mappings) catch {
-        log.err("Failed to parse mapping argument: {s}. Mapping should be a MAC address, followed by a comma, followed by an IP address (no spaces)", .{mapping_arg});
+        log.err("Failed to parse mapping argument: {s}. Mapping should be a MAC address, followed by a comma, followed by an IP address (no spaces).", .{mapping_arg});
         return error.InvalidMappingArgument;
     };
 }
@@ -89,7 +89,7 @@ fn parseMacIpMappingContent(mapping_arg: []const u8, ip4_mappings: *std.ArrayLis
     const mac_addr_slice = mapping_arg_iter.next() orelse unreachable; // mapping_arg is expected not to be empty
 
     if (mac_addr_slice.len != 17) {
-        log.err("First part of mapping does not look like a MAC address: {s}. Use format AA:BB:CC:DD:EE:FF.", .{mac_addr_slice});
+        log.err("Failed to parse mapping MAC address: {s}. Use format AA:BB:CC:DD:EE:FF.", .{mac_addr_slice});
         return error.InvalidMacAddr;
     }
 
@@ -105,6 +105,7 @@ fn parseMacIpMappingContent(mapping_arg: []const u8, ip4_mappings: *std.ArrayLis
     }
 
     const ip_addr_slice = mapping_arg_iter.next() orelse {
+        log.err("Mapping is missing IP address.", .{});
         return error.IncompleteMappingArgument;
     };
 
@@ -126,7 +127,7 @@ fn parseMacIpMappingContent(mapping_arg: []const u8, ip4_mappings: *std.ArrayLis
         });
     } else |_| {}
 
-    log.err("Failed to parse IP address as IPv4 or IPv6: .{s}", .{ip_addr_slice});
+    log.err("Failed to parse IP address as IPv4 or IPv6: {s}", .{ip_addr_slice});
     return error.InvalidIpAddr;
 }
 
