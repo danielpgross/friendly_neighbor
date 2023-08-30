@@ -4,12 +4,12 @@ const c = @cImport({
 });
 const clap = @import("clap");
 
-const parse_args = @import("parse_args.zig");
+const cli = @import("cli.zig");
 const capture_filter = @import("capture_filter.zig");
 const network_interface = @import("network_interface.zig");
 const capture = @import("capture.zig");
 
-pub const log = std.log.scoped(.friendly_neighbor);
+pub const log = std.log;
 
 pub const ExecutionOptions = struct {
     interface_name: []const u8,
@@ -26,7 +26,7 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
     // Parse CLI args
-    const exec_opts = parse_args.parseArgs(gpa.allocator()) catch |err| {
+    const exec_opts = cli.parseArgs(gpa.allocator()) catch |err| {
         if (err == error.CliArgsHelpRequested) return else return handleFatalErr(error.ArgParseFailure);
     };
     defer gpa.allocator().free(exec_opts.ip4_mappings);
@@ -50,7 +50,9 @@ pub fn main() !void {
 
 fn handleFatalErr(err: anyerror) !void {
     _ = switch (err) {
-        error.ArgParseFailure => log.err("Failed to parse command line arguments.", .{}),
+        error.ArgParseFailure => {
+            try cli.printUsage(true);
+        },
         error.GenerateCaptureFilterFailure => log.err("Failed to generate packet capture filter.", .{}),
         error.GetInterfaceMacFailure => log.err("Failed to determine MAC address for specified network interface.", .{}),
         error.PacketCaptureFailure => log.err("Failed to start network packet capture.", .{}),
@@ -58,10 +60,10 @@ fn handleFatalErr(err: anyerror) !void {
         else => {},
     };
 
-    return err;
+    std.os.exit(1);
 }
 
 test {
-    _ = @import("parse_args.zig");
+    _ = @import("cli.zig");
     _ = @import("capture_filter.zig");
 }

@@ -6,21 +6,26 @@ const log = main.log;
 const ExecutionOptions = main.ExecutionOptions;
 const MacIpAddressPair = main.MacIpAddressPair;
 
+const CLI_PARAMS = clap.parseParamsComptime(
+    \\-i, --interface <IFACE> Name of network interface on which to listen and send packets
+    \\-m, --mapping <MAPPING>... One or more MAC to IP (v4 or v6) address mappings, each in the format <MAC address>,<IP address>
+    \\    --mappings <MAPPINGS> A single string containing one or more mappings in the format <MAC address>,<IP address> with mappings separated by a space
+    \\-h, --help Display this help and exit
+    \\-v, --version Print program version and exit
+    \\
+);
+
+const CLI_PARSERS = .{
+    .IFACE = clap.parsers.string,
+    .MAPPING = clap.parsers.string,
+    .MAPPINGS = clap.parsers.string,
+};
+
+const VERSION = "0.1.0-dev";
+
 pub fn parseArgs(alloc: std.mem.Allocator) !ExecutionOptions {
-    const params = comptime clap.parseParamsComptime(
-        \\-h, --help Display this help and exit
-        \\-i, --interface <IFACE> Network interface name on which to listen and send packets
-        \\-m, --mapping <MAPPING>... One or more MAC to IP (v4 or v6) address mappings, each one in the format <MAC address>,<IP address>
-        \\    --mappings <MAPPINGS> A single string containing one or more mappings in the format <MAC address>,<IP address> with mappings separated by a space
-        \\
-    );
-    const parsers = comptime .{
-        .IFACE = clap.parsers.string,
-        .MAPPING = clap.parsers.string,
-        .MAPPINGS = clap.parsers.string,
-    };
     var diag = clap.Diagnostic{};
-    var res = clap.parse(clap.Help, &params, parsers, .{
+    var res = clap.parse(clap.Help, &CLI_PARAMS, CLI_PARSERS, .{
         .diagnostic = &diag,
     }) catch |err| {
         diag.report(std.io.getStdErr().writer(), err) catch {};
@@ -29,7 +34,12 @@ pub fn parseArgs(alloc: std.mem.Allocator) !ExecutionOptions {
     defer res.deinit();
 
     if (res.args.help != 0) {
-        try clap.help(std.io.getStdErr().writer(), clap.Help, &params, .{});
+        try printHelp();
+        return error.CliArgsHelpRequested;
+    }
+
+    if (res.args.version != 0) {
+        try printVersion();
         return error.CliArgsHelpRequested;
     }
 
@@ -48,7 +58,61 @@ pub fn parseArgs(alloc: std.mem.Allocator) !ExecutionOptions {
     execution_options.ip4_mappings = mappings[0];
     execution_options.ip6_mappings = mappings[1];
 
+    if (execution_options.ip4_mappings.len == 0 and execution_options.ip6_mappings.len == 0) {
+        log.err("At least 1 MAC to IP address mapping must be provided.", .{});
+        return error.MissingArgument;
+    }
+
     return execution_options;
+}
+
+fn getExecutableName() []const u8 {
+    var args_iter = std.process.args();
+    return args_iter.next() orelse unreachable;
+}
+
+fn printHelp() !void {
+    const stderr = std.io.getStdErr().writer();
+    try stderr.print(
+        \\Friendly Neighbor (v{s})
+        \\    Respond to ARP and NDP requests on behalf of neighboring machines
+        \\
+        \\USAGE
+        \\    
+    , .{VERSION});
+    try printUsage(false);
+    try stderr.print("\nOPTIONS\n", .{});
+    try clap.help(stderr, clap.Help, &CLI_PARAMS, .{ .max_width = 80 });
+    try stderr.print(
+        \\EXAMPLES
+        \\    {s} -i eth0 \
+        \\        -m 11:22:33:44:55:66,192.168.1.2 \
+        \\        -m 11:22:33:44:55:66,fd12:3456:789a:1::1
+        \\
+        \\    {s} -i eno1 --mappings \
+        \\        "AA:BB:CC:DD:EE:FF,10.0.8.3 AA:BB:CC:DD:EE:FF,fd9a:bc83:57e4:2::1"
+        \\
+        \\
+    , .{ getExecutableName(), getExecutableName() });
+    try stderr.print(
+        \\FEEDBACK
+        \\    Feedback and bug reports are welcome at:
+        \\    https://github.com/danielpgross/friendly_neighbor
+        \\
+    , .{});
+}
+
+pub fn printUsage(include_label: bool) !void {
+    const stderr = std.io.getStdErr().writer();
+    if (include_label) try stderr.print("Usage: ", .{});
+    try stderr.print("{s} ", .{getExecutableName()});
+    try clap.usage(stderr, clap.Help, &CLI_PARAMS);
+    try stderr.print("\n", .{});
+}
+
+fn printVersion() !void {
+    const stderr = std.io.getStdErr().writer();
+    try stderr.print("{s}\n", .{VERSION});
 }
 
 fn parseMacIpMappings(alloc: std.mem.Allocator, mapping_args: []const []const u8, mapping_str_arg: ?[]const u8) ![2][]const MacIpAddressPair {
