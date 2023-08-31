@@ -11,6 +11,11 @@ const capture = @import("capture.zig");
 
 pub const log = std.log;
 
+pub const std_options = struct {
+    pub const log_level = .info;
+    pub const logFn = customLogger;
+};
+
 pub const ExecutionOptions = struct {
     interface_name: []const u8,
     ip4_mappings: []const MacIpAddressPair,
@@ -24,6 +29,8 @@ pub const MacIpAddressPair = struct {
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+
+    log.info("Starting Friendly Neighbor v{s}...", .{cli.getVersion()});
 
     // Parse CLI args
     const exec_opts = cli.parseArgs(gpa.allocator()) catch |err| {
@@ -48,10 +55,28 @@ pub fn main() !void {
         return handleFatalErr(error.PacketCaptureFailure);
 }
 
+pub fn customLogger(comptime level: std.log.Level, comptime scope: @TypeOf(.EnumLiteral), comptime format: []const u8, args: anytype) void {
+    _ = scope;
+    const level_text = switch (level) {
+        .err => "ERR ",
+        .warn => "WARN",
+        .info => "INFO",
+        .debug => "DBG ",
+    };
+    const prefix = "[" ++ comptime level_text ++ "] ";
+
+    // Print the message to stderr, silently ignoring any errors
+    std.debug.getStderrMutex().lock();
+    defer std.debug.getStderrMutex().unlock();
+    const stderr = std.io.getStdErr().writer();
+    nosuspend stderr.print(prefix ++ format ++ "\n", args) catch return;
+}
+
 fn handleFatalErr(err: anyerror) !void {
     _ = switch (err) {
         error.ArgParseFailure => {
             try cli.printUsage(true);
+            std.os.exit(1);
         },
         error.GenerateCaptureFilterFailure => log.err("Failed to generate packet capture filter.", .{}),
         error.GetInterfaceMacFailure => log.err("Failed to determine MAC address for specified network interface.", .{}),
@@ -60,7 +85,7 @@ fn handleFatalErr(err: anyerror) !void {
         else => {},
     };
 
-    std.os.exit(1);
+    return err;
 }
 
 test {

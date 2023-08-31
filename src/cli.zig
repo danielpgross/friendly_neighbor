@@ -1,5 +1,6 @@
 const std = @import("std");
 const clap = @import("clap");
+const native_endian = @import("builtin").target.cpu.arch.endian();
 
 const main = @import("main.zig");
 const log = main.log;
@@ -22,6 +23,105 @@ const CLI_PARSERS = .{
 };
 
 const VERSION = "0.1.0-dev";
+
+// For formatting IPv4 addresses without including the port number.
+// Copied from stdlib and slightly modified to remove port number.
+const Ip4Address = struct {
+    sa: std.os.sockaddr.in,
+
+    pub fn format(
+        self: Ip4Address,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        out_stream: anytype,
+    ) !void {
+        if (fmt.len != 0) std.fmt.invalidFmtError(fmt, self);
+        _ = options;
+        const bytes: *const [4]u8 = @ptrCast(&self.sa.addr);
+        try std.fmt.format(out_stream, "{}.{}.{}.{}", .{
+            bytes[0],
+            bytes[1],
+            bytes[2],
+            bytes[3],
+        });
+    }
+};
+
+// For formatting IPv6 addresses without including the port number.
+// Copied from stdlib and slightly modified to remove port number.
+const Ip6Address = struct {
+    sa: std.os.sockaddr.in6,
+
+    pub fn format(
+        self: Ip6Address,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        out_stream: anytype,
+    ) !void {
+        if (fmt.len != 0) std.fmt.invalidFmtError(fmt, self);
+        _ = options;
+
+        if (std.mem.eql(u8, self.sa.addr[0..12], &[_]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff })) {
+            try std.fmt.format(out_stream, "::ffff:{}.{}.{}.{}", .{
+                self.sa.addr[12],
+                self.sa.addr[13],
+                self.sa.addr[14],
+                self.sa.addr[15],
+            });
+            return;
+        }
+        const big_endian_parts = @as(*align(1) const [8]u16, @ptrCast(&self.sa.addr));
+        const native_endian_parts = switch (native_endian) {
+            .Big => big_endian_parts.*,
+            .Little => blk: {
+                var buf: [8]u16 = undefined;
+                for (big_endian_parts, 0..) |part, i| {
+                    buf[i] = std.mem.bigToNative(u16, part);
+                }
+                break :blk buf;
+            },
+        };
+        var i: usize = 0;
+        var abbrv = false;
+        while (i < native_endian_parts.len) : (i += 1) {
+            if (native_endian_parts[i] == 0) {
+                if (!abbrv) {
+                    try out_stream.writeAll(if (i == 0) "::" else ":");
+                    abbrv = true;
+                }
+                continue;
+            }
+            try std.fmt.format(out_stream, "{x}", .{native_endian_parts[i]});
+            if (i != native_endian_parts.len - 1) {
+                try out_stream.writeAll(":");
+            }
+        }
+    }
+};
+
+// For formatting MAC addresses without including the port number.
+const MacAddress = struct {
+    bytes: [6]u8,
+
+    pub fn format(
+        self: MacAddress,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        out_stream: anytype,
+    ) !void {
+        if (fmt.len != 0) std.fmt.invalidFmtError(fmt, self);
+        _ = options;
+        const bytes = self.bytes;
+        try std.fmt.format(out_stream, "{x}:{x}:{x}:{x}:{x}:{x}", .{
+            bytes[0],
+            bytes[1],
+            bytes[2],
+            bytes[3],
+            bytes[4],
+            bytes[5],
+        });
+    }
+};
 
 pub fn parseArgs(alloc: std.mem.Allocator) !ExecutionOptions {
     var diag = clap.Diagnostic{};
@@ -112,7 +212,11 @@ pub fn printUsage(include_label: bool) !void {
 
 fn printVersion() !void {
     const stderr = std.io.getStdErr().writer();
-    try stderr.print("{s}\n", .{VERSION});
+    try stderr.print("{s}\n", .{getVersion()});
+}
+
+pub fn getVersion() []const u8 {
+    return VERSION;
 }
 
 fn parseMacIpMappings(alloc: std.mem.Allocator, mapping_args: []const []const u8, mapping_str_arg: ?[]const u8) ![2][]const MacIpAddressPair {
@@ -130,11 +234,17 @@ fn parseMacIpMappings(alloc: std.mem.Allocator, mapping_args: []const []const u8
         }
     }
 
+    if (ip4_mappings.items.len > 0) log.info("Active IPv4/ARP mappings:", .{});
     for (ip4_mappings.items) |ip4Mapping| {
-        log.debug("ip4Mapping: {}, {}", .{ std.fmt.fmtSliceHexLower(&ip4Mapping.mac), ip4Mapping.ip });
+        const ip = Ip4Address{ .sa = ip4Mapping.ip.in.sa };
+        const mac = MacAddress{ .bytes = ip4Mapping.mac };
+        log.info("  {} -> {}", .{ ip, mac });
     }
+    if (ip6_mappings.items.len > 0) log.info("Active IPv6/NDP mappings:", .{});
     for (ip6_mappings.items) |ip6Mapping| {
-        log.debug("ip6Mapping: {}, {}", .{ std.fmt.fmtSliceHexLower(&ip6Mapping.mac), ip6Mapping.ip });
+        const ip = Ip6Address{ .sa = ip6Mapping.ip.in6.sa };
+        const mac = MacAddress{ .bytes = ip6Mapping.mac };
+        log.info("  {} -> {}", .{ ip, mac });
     }
 
     return [_][]MacIpAddressPair{ try ip4_mappings.toOwnedSlice(), try ip6_mappings.toOwnedSlice() };

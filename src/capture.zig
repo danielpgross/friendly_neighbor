@@ -61,6 +61,9 @@ pub fn beginCapture(interface_name: []const u8, ip4_mappings: []const MacIpAddre
         c.pcap_perror(handle, "pcap");
         return error.LoopFailure;
     }
+
+    log.info("Listening on interface {s}...", .{interface_name});
+    log.info("Press Ctrl+C to stop...", .{});
 }
 
 export fn packetHandler(user: [*c]u8, packet_header: [*c]const c.pcap_pkthdr, raw_packet: [*c]const u8) void {
