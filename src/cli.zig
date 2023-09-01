@@ -184,6 +184,7 @@ fn printHelp() !void {
     try stderr.print("\nOPTIONS\n", .{});
     try clap.help(stderr, clap.Help, &CLI_PARAMS, .{ .max_width = 80 });
     try stderr.print(
+        \\
         \\EXAMPLES
         \\    {s} -i eth0 \
         \\        -m 11:22:33:44:55:66,192.168.1.2 \
