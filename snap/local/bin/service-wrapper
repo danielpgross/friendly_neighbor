@@ -1,0 +1,5 @@
+#!/bin/sh
+# source the management script
+. "$SNAP/bin/manage-config"
+
+"$SNAP/bin/friendly-neighbor" -i "$(interface_name)" --mappings "$(mac_ip_mappings)"

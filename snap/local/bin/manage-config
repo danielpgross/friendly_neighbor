@@ -1,0 +1,21 @@
+#!/bin/sh
+
+interface_name()
+{
+    snapctl get interface-name
+}
+
+set_interface_name()
+{
+    snapctl set interface-name="$1"
+}
+
+mac_ip_mappings()
+{
+    snapctl get mac-ip-mappings
+}
+
+set_mac_ip_mappings()
+{
+    snapctl set mac-ip-mappings="$1"
+}

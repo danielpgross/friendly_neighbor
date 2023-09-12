@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# source the management script
+. "$SNAP/bin/manage-config"
+
+handle_config()
+{
+    snapctl restart friendly-neighbor
+}
+handle_config

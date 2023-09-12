@@ -1,0 +1,34 @@
+name: friendly-neighbor
+version: '0.1'
+summary: Friendly Neighbor network service
+description: |
+  Server that responds to ARP (IPv4) and NDP (IPv6) requests on behalf of neighboring machines. Useful for keeping sleeping machines accessible on the network.
+
+grade: devel
+confinement: devmode
+base: core22
+
+apps:
+  friendly-neighbor:
+    command: bin/friendly-neighbor-wrapper
+    daemon: simple
+    plugs:
+      - network-bind
+      - network-control
+
+parts:
+  friendly-neighbor:
+    plugin: dump
+    source: ./zig-out/bin
+    source-type: local
+    stage-packages:
+      - libpcap0.8
+    organize:
+      friendly_neighbor: bin/friendly-neighbor
+  
+  scripts:
+    plugin: dump
+    source: snap/local/bin
+    organize:
+      service-wrapper: bin/friendly-neighbor-wrapper
+      manage-config: bin/manage-config
