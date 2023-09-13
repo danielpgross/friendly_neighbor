@@ -15,6 +15,7 @@ apps:
     plugs:
       - network-bind
       - network-control
+      - hardware-observe
 
 parts:
   friendly-neighbor:
