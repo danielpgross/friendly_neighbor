@@ -28,6 +28,13 @@ parts:
       - zig/latest/edge
     override-build: |
       craftctl default
+      
+      # Required so that Zig package manager network requests will work
+      if [ -n "$http_proxy" ]; then
+        export GLOBAL_AGENT_HTTP_PROXY="${http_proxy}"
+        export GLOBAL_AGENT_HTTPS_PROXY="${http_proxy}"
+      fi
+
       zig build
     stage-packages:
       - libpcap0.8
