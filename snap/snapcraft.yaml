@@ -27,7 +27,7 @@ parts:
     build-snaps:
       - zig/latest/edge
     override-build: |
-      snapcraftctl build
+      craftctl default
       zig build
     stage-packages:
       - libpcap0.8
