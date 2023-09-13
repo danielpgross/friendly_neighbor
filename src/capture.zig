@@ -57,13 +57,13 @@ pub fn beginCapture(interface_name: []const u8, ip4_mappings: []const MacIpAddre
         return error.FilterSetFailure;
     }
 
+    log.info("Listening on interface {s}...", .{interface_name});
+    log.info("Press Ctrl+C to stop...", .{});
+
     if (c.pcap_loop(handle, 0, packetHandler, @as([*c]u8, @ptrCast(@constCast(&capture_context)))) == -1) {
         c.pcap_perror(handle, "pcap");
         return error.LoopFailure;
     }
-
-    log.info("Listening on interface {s}...", .{interface_name});
-    log.info("Press Ctrl+C to stop...", .{});
 }
 
 export fn packetHandler(user: [*c]u8, packet_header: [*c]const c.pcap_pkthdr, raw_packet: [*c]const u8) void {
