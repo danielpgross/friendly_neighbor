@@ -15,7 +15,7 @@ Its main use-case is enabling network packets to be sent to sleeping machines so
 * IPv4 and IPv6 support
 
 ## Prerequisites
-* Linux (any distro, kernel version 2.0+)
+* Linux (any distro, kernel version 2.6.27+)
 * Wired Ethernet network interface
 
 ## Installation
@@ -26,6 +26,7 @@ sudo snap install friendly-neighbor
 sudo snap connect friendly-neighbor:hardware-observe
 sudo snap connect friendly-neighbor:network-control
 sudo snap set friendly-neighbor mac-ip-mappings=AA:BB:CC:DD:EE:FF,10.0.8.3 interface-name=eth0
+sudo snap restart friendly-neighbor
 ```
 
 ## Usage

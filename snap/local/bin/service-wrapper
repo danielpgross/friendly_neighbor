@@ -2,4 +2,9 @@
 # source the management script
 . "$SNAP/bin/manage-config"
 
+if [ -z "$(interface_name)" ] || [ -z "$(mac_ip_mappings)" ]; then
+    echo "Interface name and MAC-IP mappings must be configured using \`snap set\` before the service can start."
+    exit 1
+fi
+
 "$SNAP/bin/friendly-neighbor" -i "$(interface_name)" --mappings "$(mac_ip_mappings)"

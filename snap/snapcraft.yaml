@@ -5,7 +5,7 @@ description: |
   Server that responds to ARP (IPv4) and NDP (IPv6) requests on behalf of neighboring machines. Useful for keeping sleeping machines accessible on the network.
 
 grade: devel
-confinement: devmode
+confinement: strict
 base: core22
 
 apps:
@@ -20,12 +20,22 @@ apps:
 parts:
   friendly-neighbor:
     plugin: dump
-    source: ./zig-out/bin
+    source: .
     source-type: local
+    build-packages:
+      - libpcap-dev
+    build-snaps:
+      - zig/latest/edge
+    override-build: |
+      snapcraftctl build
+      zig build
     stage-packages:
       - libpcap0.8
+    stage:
+      - bin/friendly-neighbor
+      - usr/lib/*
     organize:
-      friendly_neighbor: bin/friendly-neighbor
+      zig-out/bin/friendly_neighbor: bin/friendly-neighbor
   
   scripts:
     plugin: dump
