@@ -24,18 +24,33 @@ parts:
     source-type: local
     build-packages:
       - libpcap-dev
+      - proxychains
     build-snaps:
       - zig/latest/edge
     override-build: |
       craftctl default
-      
-      # Required so that Zig package manager network requests will work
-      if [ -n "$http_proxy" ]; then
-        export GLOBAL_AGENT_HTTP_PROXY="${http_proxy}"
-        export GLOBAL_AGENT_HTTPS_PROXY="${http_proxy}"
-      fi
 
-      zig build
+      # Extract the protocol, host, and port from the http_proxy variable
+      host_and_port=${http_proxy#http://}
+      host_and_port=${host_and_port%%/*}
+      hostname=${host_and_port%:*}
+      port=${host_and_port#*:}
+
+      # Create a temporary proxychains configuration file
+      proxychains_conf="$(mktemp)"
+      cat > "$proxychains_conf" <<EOF
+      strict_chain
+      proxy_dns
+      tcp_read_time_out 15000
+      tcp_connect_time_out 8000
+      [ProxyList]
+      socks5 $hostname $port
+      EOF
+
+      PROXYCHAINS_CONF_FILE="$proxychains_conf" proxychains zig build
+
+      # Clean up temporary file
+      rm "$proxychains_conf"
     stage-packages:
       - libpcap0.8
     stage:
