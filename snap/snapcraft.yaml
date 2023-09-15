@@ -8,6 +8,12 @@ grade: devel
 confinement: strict
 base: core22
 
+architectures:
+  - build-on: amd64
+  - build-on: armhf
+  - build-on: arm64
+  - build-on: ppc64el
+
 apps:
   friendly-neighbor:
     command: bin/friendly-neighbor-wrapper
@@ -24,40 +30,38 @@ parts:
     source-type: local
     build-packages:
       - libpcap-dev
-      - proxychains
+      - curl
     build-snaps:
       - zig/latest/edge
     override-build: |
       craftctl default
 
-      # Extract the protocol, host, and port from the http_proxy variable
-      host_and_port=${http_proxy#http://}
-      host_and_port=${host_and_port%%/*}
-      hostname=${host_and_port%:*}
-      port=${host_and_port#*:}
+      # Manually download the zig-clap package, since the Zig package manager doesn't yet support
+      # using an HTTP proxy.
+      ZIG_CACHE_PATH="$CRAFT_PART_BUILD/zig-cache/"
+      EXTRACT_PATH="${ZIG_CACHE_PATH}p/1220f48518ce22882e102255ed3bcdb7aeeb4891f50b2cdd3bd74b5b2e24d3149ba2"
+      TMP_FILE="/tmp/zig-clap.tar.gz"
+      curl -L -o "$TMP_FILE" "https://github.com/Hejsil/zig-clap/archive/f49b94700e0761b7514abdca0e4f0e7f3f938a93.tar.gz"
 
-      # Create a temporary proxychains configuration file
-      proxychains_conf="$(mktemp)"
-      cat > "$proxychains_conf" <<EOF
-      strict_chain
-      proxy_dns
-      tcp_read_time_out 15000
-      tcp_connect_time_out 8000
-      [ProxyList]
-      socks5 $hostname $port
-      EOF
+      PRECOMPUTED_HASH=2737da5e8af7c1e17d2c4b7fa60fa9447720d8a47671bb087d1a7b0c7e7a420d
+      COMPUTED_HASH=$(sha256sum $TMP_FILE | awk '{print $1}')
 
-      PROXYCHAINS_CONF_FILE="$proxychains_conf" proxychains zig build
+      if [[ "$COMPUTED_HASH" == "$PRECOMPUTED_HASH" ]]; then  
+        mkdir -p "$EXTRACT_PATH"
+        tar -xzf "$TMP_FILE" -C "$EXTRACT_PATH" --strip-components=1
+      else
+        echo "Hash mismatch while downloading zig-clap package dependency. File may be corrupted."
+        exit 1
+      fi
 
-      # Clean up temporary file
-      rm "$proxychains_conf"
+      zig build --global-cache-dir "$ZIG_CACHE_PATH"
+      mkdir -p $CRAFT_PART_INSTALL/bin
+      cp zig-out/bin/friendly_neighbor $CRAFT_PART_INSTALL/bin/friendly-neighbor
     stage-packages:
       - libpcap0.8
     stage:
       - bin/friendly-neighbor
       - usr/lib/*
-    organize:
-      zig-out/bin/friendly_neighbor: bin/friendly-neighbor
   
   scripts:
     plugin: dump
