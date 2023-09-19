@@ -2,7 +2,8 @@ name: friendly-neighbor
 summary: Friendly Neighbor network service
 description: |
   Server that responds to ARP (IPv4) and NDP (IPv6) requests on behalf of neighboring machines. Useful for keeping sleeping machines accessible on the network.
-
+license: MIT
+source-code: https://github.com/danielpgross/friendly_neighbor
 confinement: strict
 base: core22
 adopt-info: friendly-neighbor
@@ -52,7 +53,7 @@ parts:
       fi
 
       # Populate metadata
-      VERSION="$(zig build version)"
+      VERSION="$(zig build --global-cache-dir "$ZIG_CACHE_PATH" version)"
       craftctl set version="$VERSION"
       if [[ $VERSION == *"dev" ]]; then
         GRADE="devel"
