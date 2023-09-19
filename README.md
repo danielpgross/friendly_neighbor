@@ -1,5 +1,7 @@
 # Friendly Neighbor
 
+[![friendly-neighbor](https://snapcraft.io/friendly-neighbor/badge.svg)](https://snapcraft.io/friendly-neighbor)
+
 <img src="logo.jpg" alt="Cartoon showing waving computer in doorway of house" width="200" height="200" align="right" />
 
 Friendly Neighbor is a network server that responds to ARP and NDP requests on behalf of other LAN devices. Think of it as applying a set of static IP-to-MAC address mappings for all devices on your LAN.
@@ -19,6 +21,8 @@ Its main use-case is enabling network packets to be sent to sleeping machines so
 * Wired Ethernet network interface
 
 ## Installation
+
+[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/friendly-neighbor)
 
 ```
 sudo snap install friendly-neighbor
