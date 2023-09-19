@@ -61,7 +61,7 @@ parts:
       fi
       craftctl set grade="$GRADE"
 
-      zig build --global-cache-dir "$ZIG_CACHE_PATH"
+      zig build -Dcpu=baseline -Doptimize=ReleaseSafe --global-cache-dir "$ZIG_CACHE_PATH"
       mkdir -p $CRAFT_PART_INSTALL/bin
       cp zig-out/bin/friendly_neighbor $CRAFT_PART_INSTALL/bin/friendly-neighbor
     stage-packages:
