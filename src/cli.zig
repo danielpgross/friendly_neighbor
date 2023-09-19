@@ -1,6 +1,7 @@
 const std = @import("std");
 const clap = @import("clap");
 const native_endian = @import("builtin").target.cpu.arch.endian();
+const build_options = @import("build_options");
 
 const main = @import("main.zig");
 const log = main.log;
@@ -21,8 +22,6 @@ const CLI_PARSERS = .{
     .MAPPING = clap.parsers.string,
     .MAPPINGS = clap.parsers.string,
 };
-
-const VERSION = "0.1.0-dev";
 
 // For formatting IPv4 addresses without including the port number.
 // Copied from stdlib and slightly modified to remove port number.
@@ -179,7 +178,7 @@ fn printHelp() !void {
         \\
         \\USAGE
         \\    
-    , .{VERSION});
+    , .{getVersion()});
     try printUsage(false);
     try stderr.print("\nOPTIONS\n", .{});
     try clap.help(stderr, clap.Help, &CLI_PARAMS, .{ .max_width = 80 });
@@ -217,7 +216,7 @@ fn printVersion() !void {
 }
 
 pub fn getVersion() []const u8 {
-    return VERSION;
+    return build_options.version;
 }
 
 fn parseMacIpMappings(alloc: std.mem.Allocator, mapping_args: []const []const u8, mapping_str_arg: ?[]const u8) ![2][]const MacIpAddressPair {

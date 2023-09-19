@@ -1,12 +1,11 @@
 name: friendly-neighbor
-version: '0.1'
 summary: Friendly Neighbor network service
 description: |
   Server that responds to ARP (IPv4) and NDP (IPv6) requests on behalf of neighboring machines. Useful for keeping sleeping machines accessible on the network.
 
-grade: devel
 confinement: strict
 base: core22
+adopt-info: friendly-neighbor
 
 architectures:
   - build-on: amd64
@@ -51,6 +50,16 @@ parts:
         echo "Hash mismatch while downloading zig-clap package dependency. File may be corrupted."
         exit 1
       fi
+
+      # Populate metadata
+      VERSION="$(zig build version)"
+      craftctl set version="$VERSION"
+      if [[ $VERSION == *"dev" ]]; then
+        GRADE="devel"
+      else
+        GRADE="stable"
+      fi
+      craftctl set grade="$GRADE"
 
       zig build --global-cache-dir "$ZIG_CACHE_PATH"
       mkdir -p $CRAFT_PART_INSTALL/bin

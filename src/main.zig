@@ -12,7 +12,6 @@ const capture = @import("capture.zig");
 pub const log = std.log;
 
 pub const std_options = struct {
-    pub const log_level = .info;
     pub const logFn = customLogger;
 };
 
@@ -30,14 +29,14 @@ pub const MacIpAddressPair = struct {
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
-    log.info("Starting Friendly Neighbor v{s}...", .{cli.getVersion()});
-
     // Parse CLI args
     const exec_opts = cli.parseArgs(gpa.allocator()) catch |err| {
         if (err == error.CliArgsHelpRequested) return else return handleFatalErr(error.ArgParseFailure);
     };
     defer gpa.allocator().free(exec_opts.ip4_mappings);
     defer gpa.allocator().free(exec_opts.ip6_mappings);
+
+    log.info("Starting Friendly Neighbor v{s}...", .{cli.getVersion()});
 
     // Get my MAC address
     network_interface.validateInterface(exec_opts.interface_name) catch

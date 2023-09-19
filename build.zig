@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const version = std.SemanticVersion{ .major = 0, .minor = 6, .patch = 0, .pre = "dev" };
+
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
 // runner.
@@ -15,6 +17,9 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    const step = b.step("version", "Print version number");
+    step.makeFn = printVersion;
+
     const exe = b.addExecutable(.{
         .name = "friendly_neighbor",
         // In this case the main source file is merely a path, however, in more
@@ -28,6 +33,10 @@ pub fn build(b: *std.Build) void {
     exe.addIncludePath(.{ .path = "/opt/homebrew/opt/libpcap/include" });
     exe.addLibraryPath(.{ .path = "/opt/homebrew/opt/libpcap/lib" });
     exe.linkSystemLibrary("pcap");
+
+    const options = b.addOptions();
+    options.addOption([]const u8, "version", getVersion());
+    exe.addOptions("build_options", options);
 
     const clap = b.dependency("clap", .{});
     exe.addModule("clap", clap.module("clap"));
@@ -79,4 +88,14 @@ pub fn build(b: *std.Build) void {
     // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_unit_tests.step);
+}
+
+fn getVersion() []const u8 {
+    return comptime std.fmt.comptimePrint("{}", .{version});
+}
+
+fn printVersion(self: *std.build.Step, progress: *std.Progress.Node) !void {
+    _ = progress;
+    _ = self;
+    try std.io.getStdOut().writer().print("{s}\n", .{getVersion()});
 }

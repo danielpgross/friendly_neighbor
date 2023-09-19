@@ -58,7 +58,10 @@ pub fn beginCapture(interface_name: []const u8, ip4_mappings: []const MacIpAddre
     }
 
     log.info("Listening on interface {s}...", .{interface_name});
-    log.info("Press Ctrl+C to stop...", .{});
+
+    if (std.io.getStdErr().isTty()) {
+        log.info("Press Ctrl+C to stop...", .{});
+    }
 
     if (c.pcap_loop(handle, 0, packetHandler, @as([*c]u8, @ptrCast(@constCast(&capture_context)))) == -1) {
         c.pcap_perror(handle, "pcap");
