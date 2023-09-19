@@ -31,6 +31,16 @@ parts:
       - curl
     build-snaps:
       - zig/latest/edge
+    override-pull: |
+      craftctl default
+      LAST_COMMITTED_TAG="$(git tag -l --sort=-version:refname "v*" | tail -n 1)"
+      LAST_COMMITTED_TAG_VER="$(echo ${LAST_COMMITTED_TAG} | sed 's/v//')"
+      LAST_RELEASED_TAG="$(snap info friendly-neighbor | awk '$1 == "latest/beta:" { print $2 }')"
+      # If the latest tag has not been released to beta, build that tag instead of main.
+      if [ "${LAST_COMMITTED_TAG_VER}" != "${LAST_RELEASED_TAG%%+*}" ]; then
+        git fetch
+        git checkout "${LAST_COMMITTED_TAG}"
+      fi
     override-build: |
       craftctl default
 
