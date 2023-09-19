@@ -54,7 +54,9 @@ parts:
 
       # Populate metadata
       VERSION="$(zig build --global-cache-dir "$ZIG_CACHE_PATH" version)"
-      craftctl set version="$VERSION"
+      # Also append the Zig version, since we're building from edge
+      ZIG_VERSION="$(zig version)"
+      craftctl set version="${VERSION}+zig-${ZIG_VERSION%%+*}"
       if [[ $VERSION == *"dev" ]]; then
         GRADE="devel"
       else
