@@ -9,22 +9,22 @@ Its main use-case is enabling network packets to be sent to sleeping machines so
 ## Features
 * Super lightweight and performant, built with Zig
 * Built with libpcap for efficient, low-overhead packet filtering
-* Supports different CPU architectures, including x86 and Raspberry Pi (ARM)
+* Supports different CPU architectures, including x86_64 and Raspberry Pi (ARM64)
 * Distributed as a universal [Snap package](https://snapcraft.io/) for easy installation on many Linux distros
 * Can respond on behalf of multiple machines at once
 * IPv4 and IPv6 support
 
 ## Prerequisites
-* Linux (any distro, kernel version 2.6.27+)
+* Linux (any distro supporting Snap packages, kernel version 2.6.27+)
 * Wired Ethernet network interface
 
 ## Installation
-Work in progress: The following will not work until the snap package has been published for public use.
 
 ```
 sudo snap install friendly-neighbor
 sudo snap connect friendly-neighbor:hardware-observe
 sudo snap connect friendly-neighbor:network-control
+# Replace the values for "mac-ip-mappings" and "interface-name" below with your real ones:
 sudo snap set friendly-neighbor mac-ip-mappings=AA:BB:CC:DD:EE:FF,10.0.8.3 interface-name=eth0
 sudo snap restart friendly-neighbor
 ```
