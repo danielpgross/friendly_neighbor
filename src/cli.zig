@@ -307,9 +307,8 @@ fn parseMacIpMappingContent(mapping_arg: []const u8, ip4_mappings: *std.ArrayLis
 
 test "expect correctly parsed mappings with 1 IPv4 mapping arg" {
     const alloc = std.testing.allocator;
-    var args = [_][:0]const u8{ "friendly_neighbor", "11:22:33:44:55:66|192.168.1.1" };
 
-    const mappings = try parseArgs(alloc, &args);
+    const mappings = try parseMacIpMappings(alloc, &[_][]const u8{}, "11:22:33:44:55:66,192.168.1.1");
     const ip4_mappings = mappings[0];
     defer alloc.free(ip4_mappings);
     const ip6_mappings = mappings[1];
@@ -324,9 +323,8 @@ test "expect correctly parsed mappings with 1 IPv4 mapping arg" {
 
 test "expect correctly parsed mappings with 1 IPv6 mapping arg" {
     const alloc = std.testing.allocator;
-    var args = [_][:0]const u8{ "friendly_neighbor", "11:22:33:44:55:66|2001:0db8:3333:4444:5555:6666:7777:8888" };
 
-    const mappings = try parseArgs(alloc, &args);
+    const mappings = try parseMacIpMappings(alloc, &[_][]const u8{}, "11:22:33:44:55:66,2001:0db8:3333:4444:5555:6666:7777:8888");
     const ip4_mappings = mappings[0];
     defer alloc.free(ip4_mappings);
     const ip6_mappings = mappings[1];
@@ -341,9 +339,8 @@ test "expect correctly parsed mappings with 1 IPv6 mapping arg" {
 
 test "expect correctly parsed mappings with 1 IPv6 mapping arg in compressed representation" {
     const alloc = std.testing.allocator;
-    var args = [_][:0]const u8{ "friendly_neighbor", "11:22:33:44:55:66|2001:db8:3333:4444::8888" };
 
-    const mappings = try parseArgs(alloc, &args);
+    const mappings = try parseMacIpMappings(alloc, &[_][]const u8{}, "11:22:33:44:55:66,2001:db8:3333:4444::8888");
     const ip4_mappings = mappings[0];
     defer alloc.free(ip4_mappings);
     const ip6_mappings = mappings[1];
@@ -358,9 +355,8 @@ test "expect correctly parsed mappings with 1 IPv6 mapping arg in compressed rep
 
 test "expect correctly parsed mappings with 1 IPv4 mapping arg and 1 IPv6 mapping arg" {
     const alloc = std.testing.allocator;
-    var args = [_][:0]const u8{ "friendly_neighbor", "11:22:33:44:55:66|192.168.1.1", "11:22:33:44:55:66|2001:db8:3333:4444::8888" };
 
-    const mappings = try parseArgs(alloc, &args);
+    const mappings = try parseMacIpMappings(alloc, &[_][]const u8{}, "11:22:33:44:55:66,192.168.1.1 11:22:33:44:55:66,2001:db8:3333:4444::8888");
     const ip4_mappings = mappings[0];
     defer alloc.free(ip4_mappings);
     const ip6_mappings = mappings[1];
@@ -378,9 +374,8 @@ test "expect correctly parsed mappings with 1 IPv4 mapping arg and 1 IPv6 mappin
 
 test "expect correctly parsed mappings with 2 IPv4 mapping args and 2 IPv6 mapping args" {
     const alloc = std.testing.allocator;
-    var args = [_][:0]const u8{ "friendly_neighbor", "11:22:33:44:55:66|192.168.1.1", "11:22:33:44:55:66|2001:db8:3333:4444::8888", "22:22:33:44:55:66|192.168.1.254", "22:22:33:44:55:66|FD04:AFA8:33E6::1" };
 
-    const mappings = try parseArgs(alloc, &args);
+    const mappings = try parseMacIpMappings(alloc, &[_][]const u8{}, "11:22:33:44:55:66,192.168.1.1 11:22:33:44:55:66,2001:db8:3333:4444::8888 22:22:33:44:55:66,192.168.1.254 22:22:33:44:55:66,FD04:AFA8:33E6::1");
     const ip4_mappings = mappings[0];
     defer alloc.free(ip4_mappings);
     const ip6_mappings = mappings[1];

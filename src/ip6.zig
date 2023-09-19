@@ -114,35 +114,3 @@ fn calculateIcmp6Checksum(ndp_frame: EthernetNdpFrame) u16 {
 
     return ~folded_sum;
 }
-
-//test "icmpv6 checksum" {
-//     const dst_mac = std.mem.nativeToBig(u48, 0x222222222222);
-//     const my_mac = std.mem.nativeToBig(u48, 0xaaaaaaaaaaaa);
-//     const src_mac = std.mem.nativeToBig(u48, 0x111111111111);
-//     const src_ip = std.mem.nativeToBig(u128, 0x2001db8333344445555666677778888);
-//     const dst_ip = std.mem.nativeToBig(u128, 0x2001db833334444CCCCDDDDEEEEFFFF);
-
-//     const packet = EthernetNdpFrame{
-//         .eth_dst_addr = dst_mac,
-//         .eth_src_addr = my_mac,
-//         .payload_type = std.mem.nativeToBig(u16, 0x86dd), // IPv6
-//         .ip_payload_len = std.mem.nativeToBig(u16, 32),
-//         .ip_next_header = 58, // ICMPv6
-//         .ip_hop_limit = 255,
-//         .ip_src_addr = src_ip,
-//         .ip_dst_addr = dst_ip,
-//         .icmp_type = 136, // Neighbor advertisement
-//         .icmp_code = 0,
-//         .icmp_checksum = 0,
-//         .icmp_flags = std.mem.nativeToBig(u32, 0x40000000), // Solicited
-//         .ndp_target_addr = src_ip,
-//         .ndp_option_type = 2,
-//         .ndp_option_len = 1,
-//         .ndp_option_eth_addr = src_mac,
-//     };
-
-//     log.debug("align of EthernetNdpFrame: {d}", .{@alignOf(EthernetNdpFrame)});
-
-//     const result = calculateIcmp6Checksum(packet);
-//     log.debug("checksum: {d}", .{result});
-// }
