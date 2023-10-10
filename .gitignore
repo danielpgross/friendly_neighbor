@@ -5,3 +5,8 @@ zig-out/
 /build/
 /build-*/
 /docgen_tmp/
+
+# Jekyll
+_site/
+Gemfile.lock
+.bundle/

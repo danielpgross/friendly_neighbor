@@ -33,7 +33,12 @@ sudo snap set friendly-neighbor mac-ip-mappings=AA:BB:CC:DD:EE:FF,10.0.8.3 inter
 sudo snap restart friendly-neighbor
 ```
 
+The Snap package is configured to run automatically Friendly Neighbor as a network service (daemon). After performing the steps above, the service should be running and should automatically start on subsequent system startups.
+
 ## Usage
+
+The following usage details are only relevant when running the service directly. If using the Snap package, service parameters are set using `snap set friendly-neighbor ...`
+
 ```
 USAGE
     friendly_neighbor [-hv] [-i <IFACE>] [-m <MAPPING>...] [--mappings <MAPPINGS>]
